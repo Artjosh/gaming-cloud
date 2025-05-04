@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 interface User {
   id: string
   email?: string
+  email_confirmed_at?: string | null
   user_metadata?: {
     full_name?: string
   }
@@ -15,6 +16,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -23,28 +25,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const fetchUser = async () => {
+    try {
+      const response = await fetch("/api/auth/user")
+      const data = await response.json()
+
+      if (response.ok && data.user) {
+        setUser(data.user)
+      } else {
+        setUser(null)
+      }
+    } catch (error) {
+      console.error("Erro ao verificar autenticação:", error)
+      setUser(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     // Verificar se o usuário está autenticado ao carregar a página
-    const checkUser = async () => {
-      try {
-        const response = await fetch("/api/auth/user")
-        const data = await response.json()
-
-        if (response.ok && data.user) {
-          setUser(data.user)
-        } else {
-          setUser(null)
-        }
-      } catch (error) {
-        console.error("Erro ao verificar autenticação:", error)
-        setUser(null)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    checkUser()
+    fetchUser()
   }, [])
+
+  const refreshUser = async () => {
+    setLoading(true)
+    await fetchUser()
+  }
 
   const login = async (email: string, password: string) => {
     try {
@@ -114,7 +121,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, register, logout }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {
