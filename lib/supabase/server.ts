@@ -7,7 +7,7 @@ export function createServerClient() {
 
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: {
-      flowType: "pkce", // Usar PKCE em vez do fluxo implícito
+      flowType: "implicit", // Voltando para o fluxo implícito
     },
     cookies: {
       get(name) {

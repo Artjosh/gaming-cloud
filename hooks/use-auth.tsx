@@ -1,5 +1,5 @@
 "use client"
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react"
 import { createClientClient } from "@/lib/supabase/client"
 
 interface User {
@@ -27,8 +27,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const fetchUser = async () => {
+  const fetchUser = useCallback(async () => {
     try {
+      // Primeiro, tentamos obter a sessão do cliente Supabase
+      const supabase = createClientClient()
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        console.error("Erro ao obter sessão:", sessionError)
+        setUser(null)
+        setLoading(false)
+        return
+      }
+
+      if (sessionData.session) {
+        console.log("Sessão encontrada no cliente, obtendo dados do usuário")
+        const { data: userData } = await supabase.auth.getUser()
+
+        if (userData && userData.user) {
+          setUser(userData.user as User)
+          setLoading(false)
+          return
+        }
+      }
+
+      // Se não tivermos uma sessão válida no cliente, tentamos a API do servidor
+      console.log("Tentando obter usuário da API do servidor")
       const response = await fetch("/api/auth/user")
       const data = await response.json()
 
@@ -43,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     // Verificar se o usuário está autenticado ao carregar a página
@@ -66,12 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [])
+  }, [fetchUser])
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     setLoading(true)
     await fetchUser()
-  }
+  }, [fetchUser])
 
   const login = async (email: string, password: string) => {
     try {
@@ -160,9 +184,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       setLoading(true)
+      const supabase = createClientClient()
+      await supabase.auth.signOut()
+
+      // Também chamamos a API do servidor para garantir que todas as sessões sejam limpas
       await fetch("/api/auth/logout", {
         method: "POST",
       })
+
       setUser(null)
     } catch (error) {
       console.error("Erro ao fazer logout:", error)

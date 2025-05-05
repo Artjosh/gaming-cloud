@@ -15,46 +15,65 @@ export default function Home() {
   const searchParams = useSearchParams()
   const [processingAuth, setProcessingAuth] = useState(false)
 
-  // Processar código de autenticação se presente na URL
+  // Processar autenticação quando a página carrega
   useEffect(() => {
-    const processAuthCode = async () => {
-      const code = searchParams.get("code")
+    const processAuth = async () => {
+      const hashParams = window.location.hash
 
-      if (code) {
+      // Verificar se há um hash de autenticação na URL
+      if (hashParams && hashParams.includes("access_token")) {
         try {
           setProcessingAuth(true)
-          console.log("Processando código de autenticação:", code)
+          console.log("Detectado hash de autenticação")
 
           const supabase = createClientClient()
-          const { error } = await supabase.auth.exchangeCodeForSession(code)
+
+          // Extrair a sessão diretamente do hash
+          const { data, error } = await supabase.auth.getSession()
 
           if (error) {
-            console.error("Erro ao trocar código por sessão:", error)
+            console.error("Erro ao obter sessão:", error)
             router.push(`/login-error?error=${encodeURIComponent(error.message)}`)
             return
           }
 
-          // Atualizar o usuário após autenticação bem-sucedida
-          await refreshUser()
+          if (data.session) {
+            console.log("Sessão obtida com sucesso")
 
-          // Limpar o código da URL
-          window.history.replaceState({}, "", "/")
+            // Atualizar o usuário após autenticação bem-sucedida
+            await refreshUser()
 
-          // Redirecionar para o dashboard
-          router.push("/dashboard")
-        } catch (error) {
+            // Limpar o hash da URL
+            window.history.replaceState({}, document.title, window.location.pathname)
+
+            // Redirecionar para o dashboard
+            router.push("/dashboard")
+          } else {
+            console.error("Não foi possível obter uma sessão válida")
+            router.push("/login-error?error=invalid_session")
+          }
+        } catch (error: any) {
           console.error("Erro ao processar autenticação:", error)
-          router.push("/login-error?error=processing_error")
+          router.push(`/login-error?error=${encodeURIComponent(error.message || "unknown_error")}`)
         } finally {
           setProcessingAuth(false)
         }
       }
+
+      // Verificar se há um código de erro na URL
+      const errorCode = searchParams.get("error_code")
+      const errorDescription = searchParams.get("error_description")
+
+      if (errorCode || errorDescription) {
+        console.error("Erro de autenticação:", errorCode, errorDescription)
+        router.push(`/login-error?error=${encodeURIComponent(errorDescription || "unknown_error")}`)
+      }
     }
 
-    if (searchParams.get("code")) {
-      processAuthCode()
+    if (typeof window !== "undefined") {
+      processAuth()
     }
-  }, [searchParams, router, refreshUser])
+  }, [router, refreshUser, searchParams])
 
   // Redirecionar para o dashboard se o usuário já estiver logado
   useEffect(() => {
