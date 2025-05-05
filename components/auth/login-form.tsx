@@ -1,15 +1,14 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import type React from "react"
 
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { X, Mail, RefreshCw, Key, Wand2 } from "lucide-react"
+import { X, Mail, RefreshCw, Key } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
-import { Switch } from "@/components/ui/switch"
 
 interface LoginFormProps {
   onClose: () => void
@@ -17,25 +16,53 @@ interface LoginFormProps {
 }
 
 export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProps) {
-  const { login, loginWithMagicLink, loading } = useAuth()
+  const { sendLoginEmail, verifyOTP, checkLoginStatus, loading } = useAuth()
   const { toast } = useToast()
   const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [otpCode, setOtpCode] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isEmailNotConfirmed, setIsEmailNotConfirmed] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [resendSuccess, setResendSuccess] = useState(false)
-  const [useMagicLink, setUseMagicLink] = useState(false)
-  const [magicLinkSent, setMagicLinkSent] = useState(false)
-  const [savePref, setSavePref] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [resendCountdown, setResendCountdown] = useState(0)
+  const [loginToken, setLoginToken] = useState<string | null>(null)
+  const checkStatusInterval = useRef<NodeJS.Timeout | null>(null)
 
-  // Carregar preferência de login salva
-  useState(() => {
-    const savedPref = localStorage.getItem("loginPreference")
-    if (savedPref === "magiclink") {
-      setUseMagicLink(true)
+  // Contador para o botão de reenvio
+  useEffect(() => {
+    if (resendCountdown > 0) {
+      const timer = setTimeout(() => {
+        setResendCountdown(resendCountdown - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
     }
-  })
+  }, [resendCountdown])
+
+  // Verificar periodicamente o status de login quando temos um token
+  useEffect(() => {
+    if (loginToken && emailSent) {
+      checkStatusInterval.current = setInterval(async () => {
+        const result = await checkLoginStatus(loginToken)
+        if (result.success) {
+          clearInterval(checkStatusInterval.current!)
+          onClose()
+          toast({
+            variant: "success",
+            title: "Login realizado com sucesso",
+            description: "Bem-vindo de volta!",
+            duration: 3000,
+          })
+        }
+      }, 2000) // Verificar a cada 2 segundos
+    }
+
+    return () => {
+      if (checkStatusInterval.current) {
+        clearInterval(checkStatusInterval.current)
+      }
+    }
+  }, [loginToken, emailSent, checkLoginStatus, onClose, toast])
 
   const handleResendEmail = async () => {
     setResendLoading(true)
@@ -84,106 +111,122 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
     e.preventDefault()
     setError(null)
     setIsEmailNotConfirmed(false)
-    setMagicLinkSent(false)
 
-    if (!email) {
+    if (!email && !emailSent) {
       setError("Por favor, informe seu email")
       return
     }
 
-    if (useMagicLink) {
+    if (emailSent) {
+      // Verificar o código OTP
+      if (!otpCode) {
+        setError("Por favor, digite o código enviado por email")
+        return
+      }
+
       try {
-        const result = await loginWithMagicLink(email)
+        const result = await verifyOTP(email, otpCode, loginToken || "")
         if (result.success) {
-          setMagicLinkSent(true)
+          onClose()
           toast({
             variant: "success",
-            title: "Link de acesso enviado",
-            description: "Verifique seu email para fazer login.",
-            duration: 5000,
+            title: "Login realizado com sucesso",
+            description: "Bem-vindo de volta!",
+            duration: 3000,
           })
-
-          // Salvar preferência se solicitado
-          if (savePref) {
-            localStorage.setItem("loginPreference", "magiclink")
-          }
         } else {
-          setError(result.error || "Falha ao enviar o link de acesso")
+          setError(result.error || "Código inválido")
           toast({
             variant: "destructive",
-            title: "Erro ao enviar link",
-            description: result.error || "Falha ao enviar o link de acesso",
+            title: "Erro de verificação",
+            description: result.error || "Código inválido ou expirado",
             duration: 5000,
           })
         }
       } catch (error) {
-        console.error("Erro ao enviar magic link:", error)
-        setError("Erro ao enviar o link de acesso")
+        console.error("Erro ao verificar OTP:", error)
+        setError("Erro ao verificar o código")
       }
     } else {
-      if (!password) {
-        setError("Por favor, informe sua senha")
-        return
-      }
-
-      const result = await login(email, password)
-      if (!result.success) {
-        // Verificar se o erro é de email não confirmado
-        if (result.error === "Email not confirmed") {
-          setIsEmailNotConfirmed(true)
+      // Enviar email com OTP e Magic Link
+      try {
+        const result = await sendLoginEmail(email)
+        if (result.success) {
+          setEmailSent(true)
+          setLoginToken(result.token || null)
+          setResendCountdown(60) // Iniciar contador de 60 segundos
           toast({
-            variant: "destructive",
-            title: "Email não confirmado",
-            description: "Por favor, confirme seu email antes de fazer login.",
-            duration: 10000, // 10 segundos
-            action: (
-              <ToastAction
-                altText="Reenviar email"
-                onClick={handleResendEmail}
-                disabled={resendLoading}
-                className="bg-blue-600 hover:bg-blue-500 text-white"
-              >
-                {resendLoading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  "Reenviar email"
-                )}
-              </ToastAction>
-            ),
-          })
-        } else {
-          setError(result.error || "Falha ao fazer login")
-          toast({
-            variant: "destructive",
-            title: "Erro de login",
-            description: result.error || "Falha ao fazer login",
+            variant: "success",
+            title: "Email enviado",
+            description: "Verifique seu email para o código de acesso ou clique no link.",
             duration: 5000,
           })
+        } else {
+          // Verificar se o erro é de email não confirmado
+          if (result.error === "Email not confirmed") {
+            setIsEmailNotConfirmed(true)
+            toast({
+              variant: "destructive",
+              title: "Email não confirmado",
+              description: "Por favor, confirme seu email antes de fazer login.",
+              duration: 10000, // 10 segundos
+              action: (
+                <ToastAction
+                  altText="Reenviar email"
+                  onClick={handleResendEmail}
+                  disabled={resendLoading}
+                  className="bg-blue-600 hover:bg-blue-500 text-white"
+                >
+                  {resendLoading ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    "Reenviar email"
+                  )}
+                </ToastAction>
+              ),
+            })
+          } else {
+            setError(result.error || "Falha ao enviar o email")
+            toast({
+              variant: "destructive",
+              title: "Erro ao enviar email",
+              description: result.error || "Falha ao enviar o email de acesso",
+              duration: 5000,
+            })
+          }
         }
-      } else {
-        onClose()
-        toast({
-          variant: "success",
-          title: "Login realizado com sucesso",
-          description: "Bem-vindo de volta!",
-          duration: 3000,
-        })
-
-        // Salvar preferência se solicitado
-        if (savePref) {
-          localStorage.setItem("loginPreference", "password")
-        }
+      } catch (error) {
+        console.error("Erro ao enviar email:", error)
+        setError("Erro ao enviar o email de acesso")
       }
     }
   }
 
-  const toggleLoginMethod = () => {
-    setUseMagicLink(!useMagicLink)
+  const handleResendLoginEmail = async () => {
+    if (resendCountdown > 0) return
+
     setError(null)
-    setMagicLinkSent(false)
+    try {
+      const result = await sendLoginEmail(email)
+      if (result.success) {
+        setLoginToken(result.token || null)
+        setResendCountdown(60) // Reiniciar contador de 60 segundos
+        toast({
+          variant: "success",
+          title: "Email reenviado",
+          description: "Verifique seu email para o novo código de acesso ou link.",
+          duration: 5000,
+        })
+      } else {
+        setError(result.error || "Falha ao reenviar o email")
+      }
+    } catch (error) {
+      console.error("Erro ao reenviar email:", error)
+      setError("Erro ao reenviar o email de acesso")
+    }
   }
 
   return (
@@ -196,12 +239,6 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
 
       {error && (
         <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded mb-4">{error}</div>
-      )}
-
-      {magicLinkSent && (
-        <div className="bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-2 rounded mb-4">
-          Link de acesso enviado para seu email. Verifique sua caixa de entrada.
-        </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -217,74 +254,63 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
             placeholder="seu@email.com"
             className="bg-gray-900 border-gray-700 text-white"
             required
+            disabled={emailSent}
           />
         </div>
 
-        {!useMagicLink && (
+        {emailSent && (
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-white">
-              Senha
+            <Label htmlFor="otpCode" className="text-white">
+              Código de Acesso
             </Label>
             <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="********"
+              id="otpCode"
+              type="text"
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value)}
+              placeholder="Digite o código recebido por email"
               className="bg-gray-900 border-gray-700 text-white"
-              required={!useMagicLink}
+              required
+              autoComplete="one-time-code"
             />
+            <div className="flex justify-between items-center mt-1">
+              <p className="text-xs text-gray-400">Verifique seu email para o código ou clique no link enviado.</p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleResendLoginEmail}
+                disabled={resendCountdown > 0 || loading}
+                className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 text-xs"
+              >
+                {resendCountdown > 0 ? (
+                  `Reenviar (${resendCountdown}s)`
+                ) : (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Reenviar
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Switch id="save-preference" checked={savePref} onCheckedChange={setSavePref} />
-            <Label htmlFor="save-preference" className="text-sm text-gray-400">
-              Salvar preferência
-            </Label>
-          </div>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={toggleLoginMethod}
-            className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
-          >
-            {useMagicLink ? (
-              <>
-                <Key className="h-4 w-4 mr-1" />
-                Usar senha
-              </>
-            ) : (
-              <>
-                <Wand2 className="h-4 w-4 mr-1" />
-                Usar Magic Link
-              </>
-            )}
-          </Button>
-        </div>
-
-        <Button
-          type="submit"
-          className="w-full bg-blue-700 hover:bg-blue-600 text-white"
-          disabled={loading || (useMagicLink && magicLinkSent)}
-        >
+        <Button type="submit" className="w-full bg-blue-700 hover:bg-blue-600 text-white" disabled={loading}>
           {loading ? (
             <>
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              {useMagicLink ? "Enviando link..." : "Entrando..."}
+              {emailSent ? "Verificando..." : "Enviando..."}
             </>
-          ) : useMagicLink ? (
+          ) : emailSent ? (
             <>
-              <Mail className="mr-2 h-4 w-4" />
-              Enviar link de acesso
+              <Key className="mr-2 h-4 w-4" />
+              Verificar código
             </>
           ) : (
             <>
-              <Key className="mr-2 h-4 w-4" />
-              Entrar com senha
+              <Mail className="mr-2 h-4 w-4" />
+              Enviar código de acesso
             </>
           )}
         </Button>
@@ -317,6 +343,17 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
               </>
             )}
           </Button>
+        </div>
+      )}
+
+      {emailSent && (
+        <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+          <p className="text-gray-300 text-sm text-center">
+            <span className="block mb-2">Aguardando autenticação...</span>
+            <span className="text-xs text-gray-400">
+              Se você clicar no link de acesso em outro dispositivo, esta tela será atualizada automaticamente.
+            </span>
+          </p>
         </div>
       )}
 

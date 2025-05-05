@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { X } from "lucide-react"
+import { X, RefreshCw } from "lucide-react"
 
 interface RegisterFormProps {
   onClose: () => void
@@ -17,34 +17,24 @@ export default function RegisterForm({ onClose, onSwitchToLogin }: RegisterFormP
   const { register, loading } = useAuth()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setSuccess(null)
 
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !email) {
       setError("Por favor, preencha todos os campos")
       return
     }
 
-    if (password !== confirmPassword) {
-      setError("As senhas não coincidem")
-      return
-    }
-
-    if (password.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres")
-      return
-    }
-
-    const result = await register(email, password, name)
+    const result = await register(email, name)
     if (!result.success) {
       setError(result.error || "Falha ao registrar")
     } else {
-      onClose()
+      setSuccess("Conta criada com sucesso! Verifique seu email para confirmar seu cadastro.")
     }
   }
 
@@ -58,6 +48,12 @@ export default function RegisterForm({ onClose, onSwitchToLogin }: RegisterFormP
 
       {error && (
         <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded mb-4">{error}</div>
+      )}
+
+      {success && (
+        <div className="bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-2 rounded mb-4">
+          {success}
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -91,40 +87,28 @@ export default function RegisterForm({ onClose, onSwitchToLogin }: RegisterFormP
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="password" className="text-white">
-            Senha
-          </Label>
-          <Input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="********"
-            className="bg-gray-900 border-gray-700 text-white"
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="confirmPassword" className="text-white">
-            Confirmar Senha
-          </Label>
-          <Input
-            id="confirmPassword"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="********"
-            className="bg-gray-900 border-gray-700 text-white"
-            required
-          />
-        </div>
-
         <Button type="submit" className="w-full bg-blue-700 hover:bg-blue-600 text-white" disabled={loading}>
-          {loading ? "Registrando..." : "Registrar"}
+          {loading ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Registrando...
+            </>
+          ) : (
+            "Registrar"
+          )}
         </Button>
       </form>
+
+      {success && (
+        <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+          <p className="text-gray-300 text-sm text-center">
+            <span className="block mb-2">Verifique seu email para confirmar seu cadastro.</span>
+            <span className="text-xs text-gray-400">
+              Você receberá um email com um link para confirmar sua conta e definir seu acesso.
+            </span>
+          </p>
+        </div>
+      )}
 
       <div className="mt-4 text-center">
         <p className="text-gray-400">

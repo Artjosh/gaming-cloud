@@ -6,74 +6,44 @@ import HeroSection from "@/components/hero-section"
 import FeaturesGrid from "@/components/features-grid"
 import Navbar from "@/components/navbar"
 import { useAuth } from "@/hooks/use-auth"
-import { createClientClient } from "@/lib/supabase/client"
 
 export default function Home() {
   const [view, setView] = useState<"hero" | "features">("hero")
-  const { user, loading, refreshUser } = useAuth()
+  const { user, loading, processAuthHash } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [processingAuth, setProcessingAuth] = useState(false)
 
   // Processar autenticação quando a página carrega
   useEffect(() => {
-    const processAuth = async () => {
-      const hashParams = window.location.hash
+    const handleAuth = async () => {
+      try {
+        setProcessingAuth(true)
 
-      // Verificar se há um hash de autenticação na URL
-      if (hashParams && hashParams.includes("access_token")) {
-        try {
-          setProcessingAuth(true)
-          console.log("Detectado hash de autenticação")
+        // Processar hash de autenticação se presente
+        const success = await processAuthHash()
 
-          const supabase = createClientClient()
-
-          // Extrair a sessão diretamente do hash
-          const { data, error } = await supabase.auth.getSession()
-
-          if (error) {
-            console.error("Erro ao obter sessão:", error)
-            router.push(`/login-error?error=${encodeURIComponent(error.message)}`)
-            return
-          }
-
-          if (data.session) {
-            console.log("Sessão obtida com sucesso")
-
-            // Atualizar o usuário após autenticação bem-sucedida
-            await refreshUser()
-
-            // Limpar o hash da URL
-            window.history.replaceState({}, document.title, window.location.pathname)
-
-            // Redirecionar para o dashboard
-            router.push("/dashboard")
-          } else {
-            console.error("Não foi possível obter uma sessão válida")
-            router.push("/login-error?error=invalid_session")
-          }
-        } catch (error: any) {
-          console.error("Erro ao processar autenticação:", error)
-          router.push(`/login-error?error=${encodeURIComponent(error.message || "unknown_error")}`)
-        } finally {
-          setProcessingAuth(false)
+        if (success) {
+          // Redirecionar para o dashboard após autenticação bem-sucedida
+          router.push("/dashboard")
+          return
         }
-      }
 
-      // Verificar se há um código de erro na URL
-      const errorCode = searchParams.get("error_code")
-      const errorDescription = searchParams.get("error_description")
+        // Verificar se há um código de erro na URL
+        const errorCode = searchParams.get("error_code")
+        const errorDescription = searchParams.get("error_description")
 
-      if (errorCode || errorDescription) {
-        console.error("Erro de autenticação:", errorCode, errorDescription)
-        router.push(`/login-error?error=${encodeURIComponent(errorDescription || "unknown_error")}`)
+        if (errorCode || errorDescription) {
+          console.error("Erro de autenticação:", errorCode, errorDescription)
+          router.push(`/login-error?error=${encodeURIComponent(errorDescription || "unknown_error")}`)
+        }
+      } finally {
+        setProcessingAuth(false)
       }
     }
 
-    if (typeof window !== "undefined") {
-      processAuth()
-    }
-  }, [router, refreshUser, searchParams])
+    handleAuth()
+  }, [router, processAuthHash, searchParams])
 
   // Redirecionar para o dashboard se o usuário já estiver logado
   useEffect(() => {

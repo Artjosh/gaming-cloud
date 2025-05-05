@@ -67,7 +67,8 @@
     "three": "latest",
     "framer-motion": "latest",
     "@react-three/fiber": "latest",
-    "@supabase/supabase-js": "latest"
+    "@supabase/supabase-js": "latest",
+    "crypto": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
