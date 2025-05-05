@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import { X, Mail, RefreshCw, Key } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
-import { createClientClient } from "@/lib/supabase/client"
 
 interface LoginFormProps {
   onClose: () => void
@@ -19,7 +18,7 @@ interface LoginFormProps {
 
 export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProps) {
   const router = useRouter()
-  const { sendLoginEmail, verifyOTP, checkLoginStatus, refreshUser } = useAuth()
+  const { sendLoginEmail, verifyOTP, checkLoginStatus } = useAuth()
   const { toast } = useToast()
   const [email, setEmail] = useState("")
   const [otpCode, setOtpCode] = useState("")
@@ -48,16 +47,14 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
   useEffect(() => {
     if (loginToken && emailSent) {
       checkStatusInterval.current = setInterval(async () => {
-        const result = await checkLoginStatus(loginToken)
-        if (result.success) {
-          // Limpar o intervalo imediatamente para evitar chamadas adicionais
-          clearInterval(checkStatusInterval.current!)
+        try {
+          const result = await checkLoginStatus(loginToken)
+          if (result.success) {
+            // Limpar o intervalo imediatamente para evitar chamadas adicionais
+            if (checkStatusInterval.current) {
+              clearInterval(checkStatusInterval.current)
+            }
 
-          // Verificar se temos uma sessão válida antes de redirecionar
-          const supabase = createClientClient()
-          const { data } = await supabase.auth.getSession()
-
-          if (data.session) {
             // Fechar o modal de login
             onClose()
 
@@ -71,23 +68,9 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
 
             // Redirecionar diretamente sem setTimeout
             router.push("/dashboard")
-          } else {
-            // Se não temos sessão, tentar obter novamente
-            await refreshUser()
-
-            // Verificar novamente após atualizar o usuário
-            const { data: refreshedData } = await supabase.auth.getSession()
-            if (refreshedData.session) {
-              onClose()
-              toast({
-                variant: "success",
-                title: "Login realizado com sucesso",
-                description: "Bem-vindo de volta!",
-                duration: 3000,
-              })
-              router.push("/dashboard")
-            }
           }
+        } catch (error) {
+          console.error("Erro ao verificar status de login:", error)
         }
       }, 2000) // Verificar a cada 2 segundos
     }
@@ -97,7 +80,7 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
         clearInterval(checkStatusInterval.current)
       }
     }
-  }, [loginToken, emailSent, checkLoginStatus, onClose, toast, router, refreshUser])
+  }, [loginToken, emailSent, checkLoginStatus, onClose, toast, router])
 
   const handleResendEmail = async () => {
     setResendLoading(true)
@@ -171,10 +154,8 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
             duration: 3000,
           })
 
-          // Redirecionar para o dashboard após um breve delay
-          setTimeout(() => {
-            router.push("/dashboard")
-          }, 500)
+          // Redirecionar para o dashboard diretamente
+          router.push("/dashboard")
         } else {
           setError(result.error || "Código inválido")
           toast({
