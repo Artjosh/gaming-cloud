@@ -1,5 +1,6 @@
 "use client"
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { createClientClient } from "@/lib/supabase/client"
 
 interface User {
   id: string
@@ -47,6 +48,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Verificar se o usuário está autenticado ao carregar a página
     fetchUser()
+
+    // Configurar listener para mudanças de autenticação
+    const supabase = createClientClient()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event)
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        await fetchUser()
+      } else if (event === "SIGNED_OUT") {
+        setUser(null)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   const refreshUser = async () => {

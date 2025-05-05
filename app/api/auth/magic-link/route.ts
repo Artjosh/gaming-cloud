@@ -4,6 +4,8 @@ import { createServerClient } from "@/lib/supabase/server"
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json()
+    const requestUrl = new URL(request.url)
+    const origin = requestUrl.origin
 
     // Validação básica
     if (!email) {
@@ -12,9 +14,13 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient()
 
-    // Enviar magic link
+    // Enviar magic link com redirecionamento para a raiz do site
+    // O código será processado diretamente na página principal
     const { error } = await supabase.auth.signInWithOtp({
       email,
+      options: {
+        emailRedirectTo: origin,
+      },
     })
 
     if (error) {
