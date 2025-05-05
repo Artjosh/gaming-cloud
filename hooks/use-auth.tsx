@@ -14,6 +14,7 @@ interface User {
 interface AuthContextType {
   user: User | null
   loading: boolean
+  setLoading: (loading: boolean) => void
   sendLoginEmail: (email: string) => Promise<{ success: boolean; error?: string; token?: string }>
   verifyOTP: (email: string, token: string, loginToken: string) => Promise<{ success: boolean; error?: string }>
   checkLoginStatus: (token: string) => Promise<{ success: boolean; error?: string }>
@@ -133,7 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const sendLoginEmail = async (email: string) => {
     try {
-      setLoading(true)
       const response = await fetch("/api/auth/login-email", {
         method: "POST",
         headers: {
@@ -156,14 +156,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Erro ao enviar email de login:", error)
       return { success: false, error: "Erro ao enviar email" }
-    } finally {
-      setLoading(false)
     }
   }
 
   const verifyOTP = async (email: string, token: string, loginToken: string) => {
     try {
-      setLoading(true)
       const response = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: {
@@ -183,8 +180,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Erro ao verificar OTP:", error)
       return { success: false, error: "Erro ao verificar código" }
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -266,6 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
+        setLoading,
         sendLoginEmail,
         verifyOTP,
         checkLoginStatus,

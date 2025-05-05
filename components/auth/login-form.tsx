@@ -16,7 +16,7 @@ interface LoginFormProps {
 }
 
 export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProps) {
-  const { sendLoginEmail, verifyOTP, checkLoginStatus, loading } = useAuth()
+  const { sendLoginEmail, verifyOTP, checkLoginStatus, loading, setLoading } = useAuth()
   const { toast } = useToast()
   const [email, setEmail] = useState("")
   const [otpCode, setOtpCode] = useState("")
@@ -124,6 +124,7 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
         return
       }
 
+      setLoading(true)
       try {
         const result = await verifyOTP(email, otpCode, loginToken || "")
         if (result.success) {
@@ -146,11 +147,16 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
       } catch (error) {
         console.error("Erro ao verificar OTP:", error)
         setError("Erro ao verificar o código")
+      } finally {
+        setLoading(false)
       }
     } else {
       // Enviar email com OTP e Magic Link
+      setLoading(true)
       try {
         const result = await sendLoginEmail(email)
+        setLoading(false)
+
         if (result.success) {
           setEmailSent(true)
           setLoginToken(result.token || null)
@@ -199,6 +205,7 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
           }
         }
       } catch (error) {
+        setLoading(false)
         console.error("Erro ao enviar email:", error)
         setError("Erro ao enviar o email de acesso")
       }
@@ -209,6 +216,7 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
     if (resendCountdown > 0) return
 
     setError(null)
+    setResendLoading(true)
     try {
       const result = await sendLoginEmail(email)
       if (result.success) {
@@ -226,6 +234,8 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
     } catch (error) {
       console.error("Erro ao reenviar email:", error)
       setError("Erro ao reenviar o email de acesso")
+    } finally {
+      setResendLoading(false)
     }
   }
 
@@ -239,6 +249,12 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
 
       {error && (
         <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded mb-4">{error}</div>
+      )}
+
+      {emailSent && (
+        <div className="bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-2 rounded mb-4">
+          Email enviado com sucesso! Verifique sua caixa de entrada.
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -280,10 +296,15 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
                 variant="ghost"
                 size="sm"
                 onClick={handleResendLoginEmail}
-                disabled={resendCountdown > 0 || loading}
+                disabled={resendCountdown > 0 || resendLoading}
                 className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 text-xs"
               >
-                {resendCountdown > 0 ? (
+                {resendLoading ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                    Enviando...
+                  </>
+                ) : resendCountdown > 0 ? (
                   `Reenviar (${resendCountdown}s)`
                 ) : (
                   <>
