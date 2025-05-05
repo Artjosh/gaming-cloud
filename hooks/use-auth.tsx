@@ -26,6 +26,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// Adicione esta função auxiliar para obter a chave de armazenamento do Supabase
+const getSupabaseStorageKey = () => {
+  const supabase = createClientClient()
+  // @ts-ignore - Acessando propriedade interna para obter a chave de armazenamento
+  return supabase.auth.storageKey || "sb-auth-token"
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -55,6 +62,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (userData && userData.user) {
           setUser(userData.user as User)
+
+          // Verificar se a sessão foi salva no localStorage
+          const sessionKey = getSupabaseStorageKey()
+          const savedSession = localStorage.getItem(sessionKey)
+
+          if (!savedSession) {
+            console.warn("Sessão não encontrada no localStorage, tentando salvar manualmente")
+
+            // Tentar salvar manualmente a sessão no localStorage
+            try {
+              localStorage.setItem(sessionKey, JSON.stringify(sessionData.session))
+            } catch (e) {
+              console.error("Erro ao salvar sessão manualmente:", e)
+            }
+          }
+
           return true
         }
       }
@@ -238,8 +261,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.authenticated) {
-        // Atualizar o usuário após autenticação bem-sucedida
-        await fetchUser()
+        // Garantir que temos uma sessão válida
+        const supabase = createClientClient()
+
+        // Tentar obter a sessão atual
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+
+        if (sessionError || !sessionData.session) {
+          // Se não temos sessão, tentar obter novamente do servidor
+          await fetchUser()
+
+          // Verificar se agora temos uma sessão válida
+          const { data: refreshedData } = await supabase.auth.getSession()
+          if (!refreshedData.session) {
+            console.error("Não foi possível obter uma sessão válida após autenticação")
+            return { success: false, error: "Sessão inválida" }
+          }
+        }
+
+        // Verificar se a sessão foi salva no localStorage
+        const sessionKey = supabase.auth.storageKey
+        const savedSession = localStorage.getItem(sessionKey)
+
+        if (!savedSession) {
+          console.warn("Sessão não encontrada no localStorage, tentando salvar manualmente")
+
+          // Tentar salvar manualmente a sessão no localStorage
+          try {
+            localStorage.setItem(sessionKey, JSON.stringify(sessionData.session))
+          } catch (e) {
+            console.error("Erro ao salvar sessão manualmente:", e)
+          }
+        }
+
         return { success: true }
       }
 
