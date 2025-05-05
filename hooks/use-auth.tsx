@@ -74,6 +74,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok && data.user) {
         setUser(data.user)
+
+        // Se temos uma sessão do servidor, mas não do cliente, tentar sincronizar
+        if (data.session && !sessionData.session) {
+          try {
+            // Tentar atualizar a sessão no cliente
+            await supabase.auth.setSession({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
+            })
+            console.log("Sessão sincronizada do servidor para o cliente")
+          } catch (e) {
+            console.error("Erro ao sincronizar sessão:", e)
+          }
+        }
+
         return true
       } else {
         setUser(null)
@@ -203,8 +218,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: data.error || "Código inválido" }
       }
 
-      // Atualizar o usuário após verificação bem-sucedida
-      await fetchUser()
+      // Se temos dados de sessão e usuário, atualizar o estado
+      if (data.session && data.user) {
+        setUser(data.user)
+
+        // Tentar atualizar a sessão no cliente
+        const supabase = createClientClient()
+        try {
+          await supabase.auth.setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          })
+        } catch (e) {
+          console.error("Erro ao definir sessão após OTP:", e)
+        }
+      } else {
+        // Caso contrário, buscar o usuário normalmente
+        await fetchUser()
+      }
 
       return { success: true }
     } catch (error) {
@@ -230,8 +261,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.authenticated) {
-        // Atualizar o usuário após autenticação bem-sucedida
-        await fetchUser()
+        // Se temos dados de sessão e usuário, atualizar o estado
+        if (data.session && data.user) {
+          setUser(data.user)
+
+          // Tentar atualizar a sessão no cliente
+          const supabase = createClientClient()
+          try {
+            await supabase.auth.setSession({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
+            })
+          } catch (e) {
+            console.error("Erro ao definir sessão após check-login-status:", e)
+          }
+        } else {
+          // Caso contrário, buscar o usuário normalmente
+          await fetchUser()
+        }
+
         return { success: true }
       }
 

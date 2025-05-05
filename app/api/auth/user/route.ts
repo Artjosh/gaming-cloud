@@ -39,8 +39,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ user: null }, { status: 401, headers })
     }
 
-    // Retornar o usuário com cabeçalhos anti-cache
-    return NextResponse.json({ user }, { headers })
+    // Retornar o usuário e a sessão com cabeçalhos anti-cache
+    return NextResponse.json({ user, session }, { headers })
   } catch (error) {
     console.error("Erro ao obter usuário:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
