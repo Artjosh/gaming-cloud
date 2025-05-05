@@ -14,7 +14,6 @@ interface User {
 interface AuthContextType {
   user: User | null
   loading: boolean
-  setLoading: (loading: boolean) => void
   sendLoginEmail: (email: string) => Promise<{ success: boolean; error?: string; token?: string }>
   verifyOTP: (email: string, token: string, loginToken: string) => Promise<{ success: boolean; error?: string }>
   checkLoginStatus: (token: string) => Promise<{ success: boolean; error?: string }>
@@ -28,11 +27,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
   // Função unificada para obter o usuário atual
   const fetchUser = useCallback(async () => {
     try {
+      setLoading(true)
       // Primeiro, tentamos obter a sessão do cliente Supabase
       const supabase = createClientClient()
       const { data: sessionData } = await supabase.auth.getSession()
@@ -128,7 +128,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchUser])
 
   const refreshUser = useCallback(async () => {
-    setLoading(true)
     await fetchUser()
   }, [fetchUser])
 
@@ -261,7 +260,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
-        setLoading,
         sendLoginEmail,
         verifyOTP,
         checkLoginStatus,

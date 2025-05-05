@@ -16,7 +16,7 @@ interface LoginFormProps {
 }
 
 export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProps) {
-  const { sendLoginEmail, verifyOTP, checkLoginStatus, loading, setLoading } = useAuth()
+  const { sendLoginEmail, verifyOTP, checkLoginStatus } = useAuth()
   const { toast } = useToast()
   const [email, setEmail] = useState("")
   const [otpCode, setOtpCode] = useState("")
@@ -27,6 +27,8 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
   const [emailSent, setEmailSent] = useState(false)
   const [resendCountdown, setResendCountdown] = useState(0)
   const [loginToken, setLoginToken] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
   const checkStatusInterval = useRef<NodeJS.Timeout | null>(null)
 
   // Contador para o botão de reenvio
@@ -124,7 +126,7 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
         return
       }
 
-      setLoading(true)
+      setIsVerifying(true)
       try {
         const result = await verifyOTP(email, otpCode, loginToken || "")
         if (result.success) {
@@ -148,14 +150,13 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
         console.error("Erro ao verificar OTP:", error)
         setError("Erro ao verificar o código")
       } finally {
-        setLoading(false)
+        setIsVerifying(false)
       }
     } else {
       // Enviar email com OTP e Magic Link
-      setLoading(true)
+      setIsSubmitting(true)
       try {
         const result = await sendLoginEmail(email)
-        setLoading(false)
 
         if (result.success) {
           setEmailSent(true)
@@ -205,9 +206,10 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
           }
         }
       } catch (error) {
-        setLoading(false)
         console.error("Erro ao enviar email:", error)
         setError("Erro ao enviar o email de acesso")
+      } finally {
+        setIsSubmitting(false)
       }
     }
   }
@@ -317,11 +319,20 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
           </div>
         )}
 
-        <Button type="submit" className="w-full bg-blue-700 hover:bg-blue-600 text-white" disabled={loading}>
-          {loading ? (
+        <Button
+          type="submit"
+          className="w-full bg-blue-700 hover:bg-blue-600 text-white"
+          disabled={isSubmitting || isVerifying}
+        >
+          {isSubmitting ? (
             <>
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              {emailSent ? "Verificando..." : "Enviando..."}
+              Enviando...
+            </>
+          ) : isVerifying ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Verificando...
             </>
           ) : emailSent ? (
             <>
