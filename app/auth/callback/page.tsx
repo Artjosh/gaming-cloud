@@ -7,6 +7,7 @@ import InteractivePixelBackground from "@/components/interactive-pixel-backgroun
 export default function AuthCallback() {
   const [message, setMessage] = useState("Processando autenticação...")
   const [error, setError] = useState<string | null>(null)
+  const [countdown, setCountdown] = useState<number | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -46,12 +47,10 @@ export default function AuthCallback() {
             console.warn("Não foi possível notificar o dispositivo original, mas o login foi bem-sucedido")
           }
 
-          setMessage("Login realizado com sucesso! Redirecionando...")
+          setMessage("Login realizado com sucesso! Esta janela será fechada automaticamente.")
 
-          // Redirecionar para o dashboard após um breve delay
-          setTimeout(() => {
-            router.push("/dashboard")
-          }, 2000)
+          // Iniciar contagem regressiva para fechar a aba
+          setCountdown(5)
         } else {
           setError("Dados de autenticação não encontrados na URL")
         }
@@ -63,6 +62,26 @@ export default function AuthCallback() {
 
     processAuth()
   }, [router, searchParams])
+
+  // Contagem regressiva para fechar a aba
+  useEffect(() => {
+    if (countdown === null) return
+
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    } else {
+      // Fechar a aba quando a contagem chegar a zero
+      window.close()
+
+      // Caso o navegador não permita fechar a aba, redirecionar para o dashboard
+      setTimeout(() => {
+        router.push("/dashboard")
+      }, 500)
+    }
+  }, [countdown, router])
 
   return (
     <main className="relative min-h-screen overflow-hidden">
@@ -119,13 +138,30 @@ export default function AuthCallback() {
 
           <p className="text-gray-300 text-center mb-6">{error || message}</p>
 
+          {countdown !== null && (
+            <p className="text-blue-400 text-center font-bold mb-6">
+              Fechando em {countdown} segundo{countdown !== 1 ? "s" : ""}...
+            </p>
+          )}
+
           {error && (
             <div className="flex justify-center">
               <button
-                onClick={() => router.push("/")}
+                onClick={() => window.close()}
                 className="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded"
               >
-                Voltar para a página inicial
+                Fechar esta janela
+              </button>
+            </div>
+          )}
+
+          {countdown !== null && (
+            <div className="flex justify-center">
+              <button
+                onClick={() => window.close()}
+                className="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded"
+              >
+                Fechar agora
               </button>
             </div>
           )}

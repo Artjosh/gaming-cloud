@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
 import type React from "react"
+import { useRouter } from "next/navigation"
 
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
@@ -16,6 +17,7 @@ interface LoginFormProps {
 }
 
 export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProps) {
+  const router = useRouter()
   const { sendLoginEmail, verifyOTP, checkLoginStatus } = useAuth()
   const { toast } = useToast()
   const [email, setEmail] = useState("")
@@ -55,6 +57,11 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
             description: "Bem-vindo de volta!",
             duration: 3000,
           })
+
+          // Redirecionar para o dashboard após um breve delay
+          setTimeout(() => {
+            router.push("/dashboard")
+          }, 500)
         }
       }, 2000) // Verificar a cada 2 segundos
     }
@@ -64,7 +71,7 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
         clearInterval(checkStatusInterval.current)
       }
     }
-  }, [loginToken, emailSent, checkLoginStatus, onClose, toast])
+  }, [loginToken, emailSent, checkLoginStatus, onClose, toast, router])
 
   const handleResendEmail = async () => {
     setResendLoading(true)
@@ -137,6 +144,11 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
             description: "Bem-vindo de volta!",
             duration: 3000,
           })
+
+          // Redirecionar para o dashboard após um breve delay
+          setTimeout(() => {
+            router.push("/dashboard")
+          }, 500)
         } else {
           setError(result.error || "Código inválido")
           toast({
