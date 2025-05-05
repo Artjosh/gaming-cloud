@@ -1,6 +1,7 @@
 "use client"
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react"
 import { createClientClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
 
 interface User {
   id: string
@@ -27,12 +28,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true) // Iniciar como true para evitar flash
+  const router = useRouter()
 
   // Função unificada para obter o usuário atual
   const fetchUser = useCallback(async () => {
     try {
-      setLoading(true)
       // Primeiro, tentamos obter a sessão do cliente Supabase
       const supabase = createClientClient()
       const { data: sessionData } = await supabase.auth.getSession()
@@ -46,7 +47,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Se não tivermos uma sessão válida no cliente, tentamos a API do servidor
-      const response = await fetch("/api/auth/user")
+      // Adicionamos um timestamp para evitar cache
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/auth/user?t=${timestamp}`, {
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      })
       const data = await response.json()
 
       if (response.ok && data.user) {
@@ -174,7 +183,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: data.error || "Código inválido" }
       }
 
-      setUser(data.user)
+      // Atualizar o usuário após verificação bem-sucedida
+      await fetchUser()
+
       return { success: true }
     } catch (error) {
       console.error("Erro ao verificar OTP:", error)
@@ -199,7 +210,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.authenticated) {
+        // Atualizar o usuário após autenticação bem-sucedida
         await fetchUser()
+
+        // Se o usuário estiver autenticado, redirecionar para o dashboard
+        if (user) {
+          setTimeout(() => {
+            router.push("/dashboard")
+          }, 500)
+        }
+
         return { success: true }
       }
 
@@ -248,6 +268,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
 
       setUser(null)
+
+      // Redirecionar para a página inicial após logout
+      router.push("/")
     } catch (error) {
       console.error("Erro ao fazer logout:", error)
     } finally {

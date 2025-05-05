@@ -31,7 +31,9 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
   const [loginToken, setLoginToken] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
+  const [verificationNonce, setVerificationNonce] = useState<string | null>(null)
   const checkStatusInterval = useRef<NodeJS.Timeout | null>(null)
+  const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Contador para o botão de reenvio
   useEffect(() => {
@@ -43,25 +45,49 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
     }
   }, [resendCountdown])
 
+  // Limpar timeouts ao desmontar
+  useEffect(() => {
+    return () => {
+      if (checkStatusInterval.current) {
+        clearInterval(checkStatusInterval.current)
+      }
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Verificar periodicamente o status de login quando temos um token
   useEffect(() => {
     if (loginToken && emailSent) {
       checkStatusInterval.current = setInterval(async () => {
-        const result = await checkLoginStatus(loginToken)
-        if (result.success) {
-          clearInterval(checkStatusInterval.current!)
-          onClose()
-          toast({
-            variant: "success",
-            title: "Login realizado com sucesso",
-            description: "Bem-vindo de volta!",
-            duration: 3000,
-          })
+        try {
+          const result = await checkLoginStatus(loginToken)
 
-          // Redirecionar para o dashboard após um breve delay
-          setTimeout(() => {
-            router.push("/dashboard")
-          }, 500)
+          if (result.success) {
+            // Limpar o intervalo
+            if (checkStatusInterval.current) {
+              clearInterval(checkStatusInterval.current)
+            }
+
+            // Fechar a modal
+            onClose()
+
+            // Mostrar toast de sucesso
+            toast({
+              variant: "success",
+              title: "Login realizado com sucesso",
+              description: "Bem-vindo de volta!",
+              duration: 3000,
+            })
+
+            // Redirecionar para o dashboard após um breve delay
+            redirectTimeoutRef.current = setTimeout(() => {
+              router.push("/dashboard")
+            }, 500)
+          }
+        } catch (error) {
+          console.error("Erro ao verificar status de login:", error)
         }
       }, 2000) // Verificar a cada 2 segundos
     }
@@ -137,7 +163,15 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
       try {
         const result = await verifyOTP(email, otpCode, loginToken || "")
         if (result.success) {
+          // Limpar qualquer intervalo existente
+          if (checkStatusInterval.current) {
+            clearInterval(checkStatusInterval.current)
+          }
+
+          // Fechar a modal
           onClose()
+
+          // Mostrar toast de sucesso
           toast({
             variant: "success",
             title: "Login realizado com sucesso",
@@ -146,7 +180,7 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
           })
 
           // Redirecionar para o dashboard após um breve delay
-          setTimeout(() => {
+          redirectTimeoutRef.current = setTimeout(() => {
             router.push("/dashboard")
           }, 500)
         } else {

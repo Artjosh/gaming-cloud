@@ -11,7 +11,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ user: null }, { status: 401 })
     }
 
-    return NextResponse.json({ user: data.user })
+    // Adicionar cabeçalhos para evitar cache
+    return NextResponse.json(
+      { user: data.user },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      },
+    )
   } catch (error) {
     console.error("Erro ao obter usuário:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
