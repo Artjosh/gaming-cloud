@@ -2,17 +2,9 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@/lib/supabase/server"
 import { randomUUID } from "crypto"
 
-// Interface para os dados de login
-interface LoginData {
-  email: string
-  authenticated: boolean
-  timestamp?: number
-  session?: any
-  user?: any
-}
-
 // Armazenamento temporário para tokens de login (em produção, use Redis ou outro armazenamento persistente)
-const loginTokens = new Map<string, LoginData>()
+// Estrutura: { email, authenticated, timestamp, session, user }
+export const loginTokens = new Map<string, any>()
 
 // Limpar tokens antigos periodicamente
 setInterval(() => {
@@ -38,6 +30,8 @@ export async function POST(request: NextRequest) {
 
     // Gerar token único para este login
     const loginToken = randomUUID()
+
+    console.log(`[login-email] Criando token ${loginToken} para ${email}`)
 
     // Armazenar token com timestamp
     loginTokens.set(loginToken, {
@@ -72,6 +66,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
-
-// Exportar loginTokens para ser usado por outras rotas
-export { loginTokens }

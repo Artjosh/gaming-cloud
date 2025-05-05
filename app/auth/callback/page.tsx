@@ -22,61 +22,69 @@ export default function AuthCallback() {
           return
         }
 
+        console.log(`[callback] Processando autenticação para token ${loginToken}`)
+
         // Processar o hash de autenticação
         const supabase = createClientClient()
 
         // Verificar se temos um hash na URL
         if (window.location.hash && window.location.hash.includes("access_token")) {
+          console.log("[callback] Hash de autenticação encontrado")
+
           // Processar o hash para obter a sessão
           const { data, error } = await supabase.auth.getSession()
 
           if (error) {
+            console.error("[callback] Erro ao processar autenticação:", error)
             setError(`Erro ao processar autenticação: ${error.message}`)
             return
           }
 
           if (!data.session) {
+            console.error("[callback] Não foi possível obter a sessão após autenticação")
             setError("Não foi possível obter a sessão após autenticação")
             return
           }
 
-          // Obter dados do usuário
-          const { data: userData, error: userError } = await supabase.auth.getUser()
-
-          if (userError || !userData.user) {
-            setError(`Erro ao obter usuário: ${userError?.message || "Usuário não encontrado"}`)
-            return
-          }
-
-          console.log("Sessão e usuário obtidos com sucesso, notificando o dispositivo original...")
+          console.log("[callback] Sessão obtida com sucesso, notificando o dispositivo original...")
 
           // Notificar o dispositivo original que o login foi bem-sucedido
-          const notifyResponse = await fetch("/api/auth/notify-login", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              loginToken,
-            }),
-          })
+          try {
+            const notifyResponse = await fetch("/api/auth/notify-login", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                loginToken,
+              }),
+            })
 
-          if (!notifyResponse.ok) {
             const notifyData = await notifyResponse.json()
-            console.warn("Erro ao notificar o dispositivo original:", notifyData.error)
-            setError(`Erro ao notificar o dispositivo original: ${notifyData.error}`)
-            return
+
+            if (!notifyResponse.ok) {
+              console.error("[callback] Erro ao notificar o dispositivo original:", notifyData.error)
+              setError(`Erro ao notificar o dispositivo original: ${notifyData.error}`)
+              return
+            }
+
+            console.log("[callback] Dispositivo original notificado com sucesso")
+            setMessage("Login realizado com sucesso! Esta janela será fechada automaticamente.")
+
+            // Iniciar contagem regressiva para fechar a aba
+            setCountdown(5)
+          } catch (notifyError) {
+            console.error("[callback] Exceção ao notificar o dispositivo original:", notifyError)
+            setError(
+              `Erro ao notificar o dispositivo original: ${notifyError instanceof Error ? notifyError.message : String(notifyError)}`,
+            )
           }
-
-          setMessage("Login realizado com sucesso! Esta janela será fechada automaticamente.")
-
-          // Iniciar contagem regressiva para fechar a aba
-          setCountdown(5)
         } else {
+          console.error("[callback] Dados de autenticação não encontrados na URL")
           setError("Dados de autenticação não encontrados na URL")
         }
       } catch (error) {
-        console.error("Erro ao processar callback:", error)
+        console.error("[callback] Erro ao processar callback:", error)
         setError(
           `Ocorreu um erro ao processar a autenticação: ${error instanceof Error ? error.message : String(error)}`,
         )

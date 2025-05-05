@@ -246,6 +246,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkLoginStatus = async (token: string) => {
     try {
+      console.log(`[useAuth] Verificando status do token ${token}`)
+
       const response = await fetch("/api/auth/check-login-status", {
         method: "POST",
         headers: {
@@ -257,45 +259,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json()
 
       if (!response.ok) {
-        console.error("Erro na resposta do check-login-status:", data.error)
+        console.error("[useAuth] Erro na resposta do check-login-status:", data.error)
         return { success: false, error: data.error }
       }
 
-      if (data.authenticated) {
-        console.log("Login autenticado com sucesso via check-login-status")
+      console.log(`[useAuth] Resposta do check-login-status:`, {
+        authenticated: data.authenticated,
+        hasUser: !!data.user,
+        hasSession: !!data.session,
+      })
 
+      if (data.authenticated) {
         // Se temos dados de sessão e usuário, atualizar o estado
         if (data.session && data.user) {
+          console.log("[useAuth] Atualizando usuário e sessão a partir do check-login-status")
+
+          // Atualizar o usuário no estado
           setUser(data.user)
 
           // Tentar atualizar a sessão no cliente
           const supabase = createClientClient()
           try {
+            console.log("[useAuth] Tentando definir sessão no cliente Supabase")
+
             const result = await supabase.auth.setSession({
               access_token: data.session.access_token,
               refresh_token: data.session.refresh_token,
             })
 
             if (result.error) {
-              console.error("Erro ao definir sessão após check-login-status:", result.error)
+              console.error("[useAuth] Erro ao definir sessão:", result.error)
             } else {
-              console.log("Sessão definida com sucesso após check-login-status")
+              console.log("[useAuth] Sessão definida com sucesso no cliente Supabase")
             }
           } catch (e) {
-            console.error("Exceção ao definir sessão após check-login-status:", e)
+            console.error("[useAuth] Exceção ao definir sessão:", e)
           }
-        } else {
-          // Caso contrário, buscar o usuário normalmente
-          console.log("Sem dados de sessão/usuário, buscando usuário normalmente")
-          await fetchUser()
-        }
 
-        return { success: true }
+          return { success: true }
+        } else {
+          console.log("[useAuth] Token autenticado, mas sem dados de sessão/usuário")
+        }
       }
 
-      return { success: false }
+      return { success: data.authenticated }
     } catch (error) {
-      console.error("Erro ao verificar status de login:", error)
+      console.error("[useAuth] Erro ao verificar status de login:", error)
       return { success: false, error: "Erro ao verificar status" }
     }
   }

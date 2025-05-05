@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { loginTokens } from "../login-email/route"
-import { createServerClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,63 +9,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Token é obrigatório" }, { status: 400 })
     }
 
-    // Verificar se o token existe e está autenticado
-    if (loginTokens.has(token)) {
-      const loginData = loginTokens.get(token)!
+    console.log(`[check-login-status] Verificando token ${token}`)
 
-      if (loginData.authenticated) {
-        // Se temos dados de sessão e usuário armazenados, retorná-los
-        if (loginData.session && loginData.user) {
-          console.log(`Retornando dados de sessão e usuário armazenados para o token ${token}`)
+    // Verificar se o token existe
+    if (!loginTokens.has(token)) {
+      console.log(`[check-login-status] Token ${token} não encontrado`)
+      return NextResponse.json({ authenticated: false, error: "Token inválido ou expirado" }, { status: 400 })
+    }
 
-          // Limpar o token após uso bem-sucedido
-          loginTokens.delete(token)
+    const loginData = loginTokens.get(token)
 
-          return NextResponse.json({
-            authenticated: true,
-            user: loginData.user,
-            session: loginData.session,
-          })
-        }
+    // Verificar se o token está autenticado
+    if (loginData.authenticated) {
+      console.log(`[check-login-status] Token ${token} está autenticado`)
 
-        // Caso contrário, tentar obter a sessão do servidor
-        const supabase = createServerClient()
-        const { data, error } = await supabase.auth.getSession()
+      // Verificar se temos dados de sessão e usuário
+      if (loginData.session && loginData.user) {
+        console.log(`[check-login-status] Retornando dados de sessão e usuário para token ${token}`)
 
-        if (error) {
-          console.error("Erro ao obter sessão:", error)
-          return NextResponse.json({ error: "Erro ao verificar sessão" }, { status: 500 })
-        }
-
-        if (!data.session) {
-          return NextResponse.json({ authenticated: false, error: "Sessão não encontrada" })
-        }
-
-        // Obter dados do usuário
-        const { data: userData, error: userError } = await supabase.auth.getUser()
-
-        if (userError || !userData.user) {
-          console.error("Erro ao obter usuário:", userError)
-          return NextResponse.json({ error: "Erro ao obter usuário" }, { status: 500 })
+        // Criar uma cópia dos dados para retornar
+        const responseData = {
+          authenticated: true,
+          user: loginData.user,
+          session: loginData.session,
         }
 
         // Limpar o token após uso bem-sucedido
         loginTokens.delete(token)
+        console.log(`[check-login-status] Token ${token} removido após uso`)
 
-        // Retornar informações completas da sessão e usuário para o cliente
-        return NextResponse.json({
-          authenticated: true,
-          user: userData.user,
-          session: data.session,
-        })
+        return NextResponse.json(responseData)
+      } else {
+        console.log(`[check-login-status] Token ${token} está autenticado, mas sem dados de sessão/usuário`)
       }
-
-      return NextResponse.json({ authenticated: false })
     }
 
-    return NextResponse.json({ error: "Token inválido ou expirado" }, { status: 400 })
+    console.log(`[check-login-status] Token ${token} não está autenticado`)
+    return NextResponse.json({ authenticated: false })
   } catch (error) {
-    console.error("Erro ao verificar status de login:", error)
+    console.error("[check-login-status] Erro ao verificar status de login:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
