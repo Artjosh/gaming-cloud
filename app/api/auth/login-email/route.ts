@@ -2,8 +2,17 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@/lib/supabase/server"
 import { randomUUID } from "crypto"
 
+// Interface para os dados de login
+interface LoginData {
+  email: string
+  authenticated: boolean
+  timestamp?: number
+  session?: any
+  user?: any
+}
+
 // Armazenamento temporário para tokens de login (em produção, use Redis ou outro armazenamento persistente)
-const loginTokens = new Map<string, { email: string; authenticated: boolean }>()
+const loginTokens = new Map<string, LoginData>()
 
 // Limpar tokens antigos periodicamente
 setInterval(() => {

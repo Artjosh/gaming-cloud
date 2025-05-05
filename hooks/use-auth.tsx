@@ -257,10 +257,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json()
 
       if (!response.ok) {
+        console.error("Erro na resposta do check-login-status:", data.error)
         return { success: false, error: data.error }
       }
 
       if (data.authenticated) {
+        console.log("Login autenticado com sucesso via check-login-status")
+
         // Se temos dados de sessão e usuário, atualizar o estado
         if (data.session && data.user) {
           setUser(data.user)
@@ -268,15 +271,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Tentar atualizar a sessão no cliente
           const supabase = createClientClient()
           try {
-            await supabase.auth.setSession({
+            const result = await supabase.auth.setSession({
               access_token: data.session.access_token,
               refresh_token: data.session.refresh_token,
             })
+
+            if (result.error) {
+              console.error("Erro ao definir sessão após check-login-status:", result.error)
+            } else {
+              console.log("Sessão definida com sucesso após check-login-status")
+            }
           } catch (e) {
-            console.error("Erro ao definir sessão após check-login-status:", e)
+            console.error("Exceção ao definir sessão após check-login-status:", e)
           }
         } else {
           // Caso contrário, buscar o usuário normalmente
+          console.log("Sem dados de sessão/usuário, buscando usuário normalmente")
           await fetchUser()
         }
 

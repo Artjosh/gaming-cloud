@@ -15,31 +15,37 @@ export async function POST(request: NextRequest) {
       const loginData = loginTokens.get(token)!
 
       if (loginData.authenticated) {
-        // Obter a sessão e o usuário do servidor para garantir que está atualizada
+        // Se temos dados de sessão e usuário armazenados, retorná-los
+        if (loginData.session && loginData.user) {
+          console.log(`Retornando dados de sessão e usuário armazenados para o token ${token}`)
+
+          // Limpar o token após uso bem-sucedido
+          loginTokens.delete(token)
+
+          return NextResponse.json({
+            authenticated: true,
+            user: loginData.user,
+            session: loginData.session,
+          })
+        }
+
+        // Caso contrário, tentar obter a sessão do servidor
         const supabase = createServerClient()
+        const { data, error } = await supabase.auth.getSession()
 
-        // Obter a sessão atual
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession()
-
-        if (sessionError) {
-          console.error("Erro ao obter sessão:", sessionError)
+        if (error) {
+          console.error("Erro ao obter sessão:", error)
           return NextResponse.json({ error: "Erro ao verificar sessão" }, { status: 500 })
         }
 
-        if (!session) {
+        if (!data.session) {
           return NextResponse.json({ authenticated: false, error: "Sessão não encontrada" })
         }
 
         // Obter dados do usuário
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser()
+        const { data: userData, error: userError } = await supabase.auth.getUser()
 
-        if (userError || !user) {
+        if (userError || !userData.user) {
           console.error("Erro ao obter usuário:", userError)
           return NextResponse.json({ error: "Erro ao obter usuário" }, { status: 500 })
         }
@@ -50,8 +56,8 @@ export async function POST(request: NextRequest) {
         // Retornar informações completas da sessão e usuário para o cliente
         return NextResponse.json({
           authenticated: true,
-          user,
-          session,
+          user: userData.user,
+          session: data.session,
         })
       }
 

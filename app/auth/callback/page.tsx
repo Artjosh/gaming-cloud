@@ -27,12 +27,28 @@ export default function AuthCallback() {
 
         // Verificar se temos um hash na URL
         if (window.location.hash && window.location.hash.includes("access_token")) {
-          const { error } = await supabase.auth.getSession()
+          // Processar o hash para obter a sessão
+          const { data, error } = await supabase.auth.getSession()
 
           if (error) {
             setError(`Erro ao processar autenticação: ${error.message}`)
             return
           }
+
+          if (!data.session) {
+            setError("Não foi possível obter a sessão após autenticação")
+            return
+          }
+
+          // Obter dados do usuário
+          const { data: userData, error: userError } = await supabase.auth.getUser()
+
+          if (userError || !userData.user) {
+            setError(`Erro ao obter usuário: ${userError?.message || "Usuário não encontrado"}`)
+            return
+          }
+
+          console.log("Sessão e usuário obtidos com sucesso, notificando o dispositivo original...")
 
           // Notificar o dispositivo original que o login foi bem-sucedido
           const notifyResponse = await fetch("/api/auth/notify-login", {
@@ -40,11 +56,16 @@ export default function AuthCallback() {
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ loginToken }),
+            body: JSON.stringify({
+              loginToken,
+            }),
           })
 
           if (!notifyResponse.ok) {
-            console.warn("Não foi possível notificar o dispositivo original, mas o login foi bem-sucedido")
+            const notifyData = await notifyResponse.json()
+            console.warn("Erro ao notificar o dispositivo original:", notifyData.error)
+            setError(`Erro ao notificar o dispositivo original: ${notifyData.error}`)
+            return
           }
 
           setMessage("Login realizado com sucesso! Esta janela será fechada automaticamente.")
@@ -56,7 +77,9 @@ export default function AuthCallback() {
         }
       } catch (error) {
         console.error("Erro ao processar callback:", error)
-        setError("Ocorreu um erro ao processar a autenticação")
+        setError(
+          `Ocorreu um erro ao processar a autenticação: ${error instanceof Error ? error.message : String(error)}`,
+        )
       }
     }
 
