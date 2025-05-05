@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import InteractivePixelBackground from "@/components/interactive-pixel-background"
 import HeroSection from "@/components/hero-section"
@@ -13,17 +13,6 @@ export default function Home() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [processingAuth, setProcessingAuth] = useState(false)
-  const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const hasRedirected = useRef(false)
-
-  // Limpar timeouts ao desmontar
-  useEffect(() => {
-    return () => {
-      if (redirectTimeoutRef.current) {
-        clearTimeout(redirectTimeoutRef.current)
-      }
-    }
-  }, [])
 
   // Processar autenticação quando a página carrega
   useEffect(() => {
@@ -36,7 +25,6 @@ export default function Home() {
 
         if (success) {
           // Redirecionar para o dashboard após autenticação bem-sucedida
-          hasRedirected.current = true
           router.push("/dashboard")
           return
         }
@@ -59,12 +47,8 @@ export default function Home() {
 
   // Redirecionar para o dashboard se o usuário já estiver logado
   useEffect(() => {
-    if (user && !loading && !processingAuth && !hasRedirected.current) {
-      // Usar um timeout para evitar redirecionamentos imediatos que podem causar flash
-      redirectTimeoutRef.current = setTimeout(() => {
-        hasRedirected.current = true
-        router.push("/dashboard")
-      }, 300)
+    if (user && !loading && !processingAuth) {
+      router.push("/dashboard")
     }
   }, [user, loading, processingAuth, router])
 

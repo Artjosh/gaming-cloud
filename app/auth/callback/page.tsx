@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClientClient } from "@/lib/supabase/client"
 import InteractivePixelBackground from "@/components/interactive-pixel-background"
@@ -10,20 +10,6 @@ export default function AuthCallback() {
   const [countdown, setCountdown] = useState<number | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const countdownTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Limpar timeouts ao desmontar
-  useEffect(() => {
-    return () => {
-      if (redirectTimeoutRef.current) {
-        clearTimeout(redirectTimeoutRef.current)
-      }
-      if (countdownTimeoutRef.current) {
-        clearTimeout(countdownTimeoutRef.current)
-      }
-    }
-  }, [])
 
   useEffect(() => {
     const processAuth = async () => {
@@ -82,17 +68,18 @@ export default function AuthCallback() {
     if (countdown === null) return
 
     if (countdown > 0) {
-      countdownTimeoutRef.current = setTimeout(() => {
+      const timer = setTimeout(() => {
         setCountdown(countdown - 1)
       }, 1000)
+      return () => clearTimeout(timer)
     } else {
       // Fechar a aba quando a contagem chegar a zero
       window.close()
 
       // Caso o navegador não permita fechar a aba, redirecionar para o dashboard
-      redirectTimeoutRef.current = setTimeout(() => {
+      setTimeout(() => {
         router.push("/dashboard")
-      }, 300)
+      }, 500)
     }
   }, [countdown, router])
 

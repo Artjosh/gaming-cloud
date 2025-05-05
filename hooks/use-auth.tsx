@@ -1,7 +1,6 @@
 "use client"
-import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react"
 import { createClientClient } from "@/lib/supabase/client"
-import { useRouter } from "next/navigation"
 
 interface User {
   id: string
@@ -28,14 +27,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true) // Começar como true para evitar flash
-  const router = useRouter()
-  const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const initialLoadDone = useRef(false)
+  const [loading, setLoading] = useState(false)
 
   // Função unificada para obter o usuário atual
   const fetchUser = useCallback(async () => {
     try {
+      setLoading(true)
       // Primeiro, tentamos obter a sessão do cliente Supabase
       const supabase = createClientClient()
       const { data: sessionData } = await supabase.auth.getSession()
@@ -49,15 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Se não tivermos uma sessão válida no cliente, tentamos a API do servidor
-      // Adicionamos um timestamp para evitar cache
-      const timestamp = new Date().getTime()
-      const response = await fetch(`/api/auth/user?t=${timestamp}`, {
-        headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-      })
+      const response = await fetch("/api/auth/user")
       const data = await response.json()
 
       if (response.ok && data.user) {
@@ -73,7 +62,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false
     } finally {
       setLoading(false)
-      initialLoadDone.current = true
     }
   }, [])
 
@@ -116,15 +104,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchUser])
 
-  // Limpar timeouts ao desmontar
-  useEffect(() => {
-    return () => {
-      if (redirectTimeoutRef.current) {
-        clearTimeout(redirectTimeoutRef.current)
-      }
-    }
-  }, [])
-
   useEffect(() => {
     // Verificar se o usuário está autenticado ao carregar a página
     fetchUser()
@@ -138,13 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("Auth state changed:", event)
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
         await fetchUser()
-
-        // Redirecionar para o dashboard após login bem-sucedido
-        if (event === "SIGNED_IN" && initialLoadDone.current) {
-          redirectTimeoutRef.current = setTimeout(() => {
-            router.push("/dashboard")
-          }, 300)
-        }
       } else if (event === "SIGNED_OUT") {
         setUser(null)
       }
@@ -153,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [fetchUser, router])
+  }, [fetchUser])
 
   const refreshUser = useCallback(async () => {
     await fetchUser()
@@ -202,9 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: data.error || "Código inválido" }
       }
 
-      // Atualizar o usuário após verificação bem-sucedida
-      await fetchUser()
-
+      setUser(data.user)
       return { success: true }
     } catch (error) {
       console.error("Erro ao verificar OTP:", error)
@@ -229,7 +199,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.authenticated) {
-        // Atualizar o usuário após autenticação bem-sucedida
         await fetchUser()
         return { success: true }
       }
@@ -279,9 +248,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
 
       setUser(null)
-
-      // Redirecionar para a página inicial após logout
-      router.push("/")
     } catch (error) {
       console.error("Erro ao fazer logout:", error)
     } finally {
