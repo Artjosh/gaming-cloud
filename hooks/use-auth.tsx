@@ -67,6 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json()
 
       if (!response.ok) {
+        // Verificar se o erro é de email não confirmado
+        if (data.error && data.error.includes("Email not confirmed")) {
+          return { success: false, error: "Email not confirmed" }
+        }
         return { success: false, error: data.error || "Erro ao fazer login" }
       }
 

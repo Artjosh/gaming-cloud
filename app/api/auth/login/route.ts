@@ -18,6 +18,10 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
+      // Verificar se o erro é de email não confirmado
+      if (error.message.includes("Email not confirmed")) {
+        return NextResponse.json({ error: "Email not confirmed" }, { status: 401 })
+      }
       return NextResponse.json({ error: error.message }, { status: 401 })
     }
 
