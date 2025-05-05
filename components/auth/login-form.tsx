@@ -31,19 +31,8 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
   const [loginToken, setLoginToken] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
-  const [verificationNonce, setVerificationNonce] = useState<string | null>(null)
   const checkStatusInterval = useRef<NodeJS.Timeout | null>(null)
   const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Contador para o botão de reenvio
-  useEffect(() => {
-    if (resendCountdown > 0) {
-      const timer = setTimeout(() => {
-        setResendCountdown(resendCountdown - 1)
-      }, 1000)
-      return () => clearTimeout(timer)
-    }
-  }, [resendCountdown])
 
   // Limpar timeouts ao desmontar
   useEffect(() => {
@@ -56,6 +45,16 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
       }
     }
   }, [])
+
+  // Contador para o botão de reenvio
+  useEffect(() => {
+    if (resendCountdown > 0) {
+      const timer = setTimeout(() => {
+        setResendCountdown(resendCountdown - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [resendCountdown])
 
   // Verificar periodicamente o status de login quando temos um token
   useEffect(() => {
@@ -84,7 +83,7 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
             // Redirecionar para o dashboard após um breve delay
             redirectTimeoutRef.current = setTimeout(() => {
               router.push("/dashboard")
-            }, 500)
+            }, 300)
           }
         } catch (error) {
           console.error("Erro ao verificar status de login:", error)
@@ -182,7 +181,7 @@ export default function LoginForm({ onClose, onSwitchToRegister }: LoginFormProp
           // Redirecionar para o dashboard após um breve delay
           redirectTimeoutRef.current = setTimeout(() => {
             router.push("/dashboard")
-          }, 500)
+          }, 300)
         } else {
           setError(result.error || "Código inválido")
           toast({

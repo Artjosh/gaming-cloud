@@ -14,6 +14,7 @@ export default function Home() {
   const searchParams = useSearchParams()
   const [processingAuth, setProcessingAuth] = useState(false)
   const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hasRedirected = useRef(false)
 
   // Limpar timeouts ao desmontar
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function Home() {
 
         if (success) {
           // Redirecionar para o dashboard após autenticação bem-sucedida
+          hasRedirected.current = true
           router.push("/dashboard")
           return
         }
@@ -57,11 +59,12 @@ export default function Home() {
 
   // Redirecionar para o dashboard se o usuário já estiver logado
   useEffect(() => {
-    if (user && !loading && !processingAuth) {
+    if (user && !loading && !processingAuth && !hasRedirected.current) {
       // Usar um timeout para evitar redirecionamentos imediatos que podem causar flash
       redirectTimeoutRef.current = setTimeout(() => {
+        hasRedirected.current = true
         router.push("/dashboard")
-      }, 100)
+      }, 300)
     }
   }, [user, loading, processingAuth, router])
 
