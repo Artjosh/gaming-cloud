@@ -9,44 +9,32 @@ export function createClientClient() {
   // Log para depuração
   console.log("Criando cliente Supabase com fluxo implícito")
 
+  // Verificar se estamos no navegador
+  if (typeof window === "undefined") {
+    throw new Error("createClientClient deve ser chamado apenas no cliente")
+  }
+
   supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     auth: {
       flowType: "implicit",
       autoRefreshToken: true,
       persistSession: true,
-      storageKey: "supabase.auth.token", // Garantir que a chave de armazenamento seja consistente
-      detectSessionInUrl: true, // Ativar detecção automática de sessão na URL
-      storage: {
-        getItem: (key) => {
-          try {
-            return localStorage.getItem(key)
-          } catch (error) {
-            console.error("Erro ao acessar localStorage:", error)
-            return null
-          }
-        },
-        setItem: (key, value) => {
-          try {
-            localStorage.setItem(key, value)
-          } catch (error) {
-            console.error("Erro ao definir localStorage:", error)
-          }
-        },
-        removeItem: (key) => {
-          try {
-            localStorage.removeItem(key)
-          } catch (error) {
-            console.error("Erro ao remover do localStorage:", error)
-          }
-        },
-      },
+      detectSessionInUrl: true,
+      storage: localStorage, // Usar diretamente o localStorage
     },
-    debug: true, // Ativar debug para rastrear problemas
+    // Ativar debug para rastrear problemas
+    debug: true,
   })
 
   // Adicionar listener para depuração de eventos de autenticação
   supabaseClient.auth.onAuthStateChange((event, session) => {
     console.log("Evento de autenticação:", event, session ? "Com sessão" : "Sem sessão")
+
+    // Verificar se a sessão foi salva no localStorage
+    if (session) {
+      const savedSession = localStorage.getItem("supabase.auth.token")
+      console.log("Sessão salva no localStorage:", !!savedSession)
+    }
   })
 
   return supabaseClient
