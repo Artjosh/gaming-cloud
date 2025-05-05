@@ -14,6 +14,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  loginWithMagicLink: (email: string) => Promise<{ success: boolean; error?: string }>
   register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
@@ -84,6 +85,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const loginWithMagicLink = async (email: string) => {
+    try {
+      setLoading(true)
+      const response = await fetch("/api/auth/magic-link", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        return { success: false, error: data.error || "Erro ao enviar o link de acesso" }
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error("Erro ao enviar magic link:", error)
+      return { success: false, error: "Erro ao enviar o link de acesso" }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const register = async (email: string, password: string, name: string) => {
     try {
       setLoading(true)
@@ -126,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithMagicLink, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )
