@@ -9,6 +9,22 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null)
   const searchParams = useSearchParams()
 
+  // Importante: Desabilitar redirecionamentos nesta página
+  useEffect(() => {
+    // Adicionar uma flag ao sessionStorage para indicar que estamos na página de callback
+    // Isso será usado para evitar redirecionamentos automáticos
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("is_auth_callback", "true")
+    }
+
+    // Limpar a flag quando sair da página
+    return () => {
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("is_auth_callback")
+      }
+    }
+  }, [])
+
   useEffect(() => {
     const processAuth = async () => {
       try {
@@ -81,7 +97,9 @@ export default function AuthCallback() {
             setMessage("Login realizado com sucesso! Esta janela será fechada automaticamente.")
 
             // Fechar a janela após notificação bem-sucedida
-            window.close()
+            setTimeout(() => {
+              window.close()
+            }, 1000)
           } catch (notifyError) {
             console.error("[callback] Exceção ao notificar o dispositivo original:", notifyError)
             setError(

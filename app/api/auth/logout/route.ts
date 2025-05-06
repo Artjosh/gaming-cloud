@@ -6,8 +6,8 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createServerClient()
 
-    // Limpar a sessão no servidor
-    const { error } = await supabase.auth.signOut()
+    // Limpar a sessão no servidor com escopo global
+    const { error } = await supabase.auth.signOut({ scope: "global" })
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })

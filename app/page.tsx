@@ -13,6 +13,17 @@ export default function Home() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [processingAuth, setProcessingAuth] = useState(false)
+  const [loadingTimeout, setLoadingTimeout] = useState(false)
+
+  // Adicionar um timeout para o loading para evitar loading infinito
+  useEffect(() => {
+    if (loading) {
+      const timer = setTimeout(() => {
+        setLoadingTimeout(true)
+      }, 5000) // 5 segundos de timeout
+      return () => clearTimeout(timer)
+    }
+  }, [loading])
 
   // Processar autenticação quando a página carrega
   useEffect(() => {
@@ -55,8 +66,19 @@ export default function Home() {
   // Mostrar indicador de carregamento durante a autenticação
   if (loading || processingAuth) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-black">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        {loadingTimeout && (
+          <>
+            <p className="text-white mb-4">Está demorando mais do que o esperado...</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Recarregar a página
+            </button>
+          </>
+        )}
       </div>
     )
   }

@@ -32,6 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authInitialized, setAuthInitialized] = useState(false)
   const router = useRouter()
 
+  // Função para verificar se estamos na página de callback
+  const isAuthCallbackPage = useCallback(() => {
+    if (typeof window === "undefined") return false
+    return sessionStorage.getItem("is_auth_callback") === "true"
+  }, [])
+
   // Função unificada para obter o usuário atual
   const fetchUser = useCallback(async () => {
     try {
@@ -160,7 +166,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetchUser()
 
         // Redirecionar para o dashboard após login bem-sucedido
-        if (event === "SIGNED_IN") {
+        // Mas apenas se NÃO estivermos na página de callback
+        if (event === "SIGNED_IN" && !isAuthCallbackPage()) {
           router.push("/dashboard")
         }
       } else if (event === "SIGNED_OUT") {
@@ -171,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [fetchUser, router])
+  }, [fetchUser, router, isAuthCallbackPage])
 
   const refreshUser = useCallback(async () => {
     await fetchUser()
@@ -349,22 +356,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Limpar o localStorage manualmente para garantir
       if (typeof window !== "undefined") {
-        // Remover itens específicos do Supabase
-        localStorage.removeItem("supabase.auth.token")
-        localStorage.removeItem("supabase.auth.expires_at")
-        localStorage.removeItem("supabase.auth.refresh_token")
-
-        // Verificar se há outros itens relacionados ao Supabase e removê-los
+        // Limpar todo o localStorage relacionado ao Supabase
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i)
-          if (key && key.startsWith("supabase.")) {
+          if (key && (key.startsWith("supabase.") || key.includes("auth"))) {
+            console.log(`Removendo item do localStorage: ${key}`)
             localStorage.removeItem(key)
+            // Ajustar o índice após remover um item
+            i--
           }
         }
       }
 
       // Chamar o signOut do Supabase
-      await supabase.auth.signOut()
+      await supabase.auth.signOut({ scope: "global" })
 
       // Também chamamos a API do servidor para garantir que todas as sessões sejam limpas
       await fetch("/api/auth/logout", {
