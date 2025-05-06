@@ -96,10 +96,18 @@ export default function AuthCallback() {
             console.log("[callback] Dispositivo original notificado com sucesso")
             setMessage("Login realizado com sucesso! Esta janela será fechada automaticamente.")
 
-            // Fechar a janela após notificação bem-sucedida
-            setTimeout(() => {
-              window.close()
-            }, 1000)
+            // Fechar a janela após notificação bem-sucedida - sem setTimeout
+            console.log("[callback] Tentando fechar a janela...")
+            window.close()
+
+            // Fallback se window.close() não funcionar
+            console.log("[callback] Tentando método alternativo para fechar a janela...")
+            try {
+              window.open("", "_self").close()
+            } catch (e) {
+              console.error("[callback] Não foi possível fechar a janela automaticamente:", e)
+              setMessage("Login realizado com sucesso! Você pode fechar esta janela agora.")
+            }
           } catch (notifyError) {
             console.error("[callback] Exceção ao notificar o dispositivo original:", notifyError)
             setError(
@@ -164,14 +172,28 @@ export default function AuthCallback() {
 
           <p className="text-gray-300 text-center mb-6">{error || message}</p>
 
-          {!error && (
+          {!error && message.includes("Login realizado com sucesso") ? (
+            <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
+              <p className="text-gray-300 text-sm text-center">
+                <strong>Login realizado com sucesso!</strong> Você pode fechar esta janela agora.
+              </p>
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => window.close()}
+                  className="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded"
+                >
+                  Fechar esta janela
+                </button>
+              </div>
+            </div>
+          ) : !error ? (
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-6">
               <p className="text-gray-300 text-sm text-center">
                 <strong>Não feche esta página.</strong> Ela será fechada automaticamente quando a autenticação for
                 concluída.
               </p>
             </div>
-          )}
+          ) : null}
 
           {error && (
             <div className="flex justify-center">
