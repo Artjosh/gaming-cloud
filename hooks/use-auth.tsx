@@ -29,6 +29,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [authInitialized, setAuthInitialized] = useState(false)
   const router = useRouter()
 
   // Função unificada para obter o usuário atual
@@ -100,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false
     } finally {
       setLoading(false)
+      setAuthInitialized(true)
     }
   }, [])
 
@@ -338,15 +340,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       setLoading(true)
+
+      // Primeiro, limpar o estado local
+      setUser(null)
+
+      // Obter o cliente Supabase
       const supabase = createClientClient()
+
+      // Limpar o localStorage manualmente para garantir
+      if (typeof window !== "undefined") {
+        // Remover itens específicos do Supabase
+        localStorage.removeItem("supabase.auth.token")
+        localStorage.removeItem("supabase.auth.expires_at")
+        localStorage.removeItem("supabase.auth.refresh_token")
+
+        // Verificar se há outros itens relacionados ao Supabase e removê-los
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && key.startsWith("supabase.")) {
+            localStorage.removeItem(key)
+          }
+        }
+      }
+
+      // Chamar o signOut do Supabase
       await supabase.auth.signOut()
 
       // Também chamamos a API do servidor para garantir que todas as sessões sejam limpas
       await fetch("/api/auth/logout", {
         method: "POST",
       })
-
-      setUser(null)
 
       // Redirecionar para a página inicial após logout
       router.push("/")
@@ -361,7 +384,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        loading,
+        loading: loading && !authInitialized, // Só consideramos loading se ainda não inicializamos a autenticação
         sendLoginEmail,
         verifyOTP,
         checkLoginStatus,

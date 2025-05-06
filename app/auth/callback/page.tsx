@@ -1,14 +1,12 @@
 "use client"
 import { useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { createClientClient } from "@/lib/supabase/client"
 import InteractivePixelBackground from "@/components/interactive-pixel-background"
 
 export default function AuthCallback() {
   const [message, setMessage] = useState("Processando autenticação...")
   const [error, setError] = useState<string | null>(null)
-  const [countdown, setCountdown] = useState<number | null>(null)
-  const router = useRouter()
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -82,8 +80,8 @@ export default function AuthCallback() {
             console.log("[callback] Dispositivo original notificado com sucesso")
             setMessage("Login realizado com sucesso! Esta janela será fechada automaticamente.")
 
-            // Iniciar contagem regressiva para fechar a aba
-            setCountdown(5)
+            // Fechar a janela após notificação bem-sucedida
+            window.close()
           } catch (notifyError) {
             console.error("[callback] Exceção ao notificar o dispositivo original:", notifyError)
             setError(
@@ -103,27 +101,7 @@ export default function AuthCallback() {
     }
 
     processAuth()
-  }, [router, searchParams])
-
-  // Contagem regressiva para fechar a aba
-  useEffect(() => {
-    if (countdown === null) return
-
-    if (countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1)
-      }, 1000)
-      return () => clearTimeout(timer)
-    } else {
-      // Fechar a aba quando a contagem chegar a zero
-      window.close()
-
-      // Caso o navegador não permita fechar a aba, redirecionar para o dashboard
-      setTimeout(() => {
-        router.push("/dashboard")
-      }, 500)
-    }
-  }, [countdown, router])
+  }, [searchParams])
 
   return (
     <main className="relative min-h-screen overflow-hidden">
@@ -159,31 +137,22 @@ export default function AuthCallback() {
             ) : (
               <>
                 <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mb-4">
-                  {message.includes("sucesso") ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-8 w-8 text-blue-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                  )}
+                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
-                <h1 className="text-2xl font-bold text-white text-center">Autenticação</h1>
+                <h1 className="text-2xl font-bold text-white text-center">Autenticação em Andamento</h1>
               </>
             )}
           </div>
 
           <p className="text-gray-300 text-center mb-6">{error || message}</p>
 
-          {countdown !== null && (
-            <p className="text-blue-400 text-center font-bold mb-6">
-              Fechando em {countdown} segundo{countdown !== 1 ? "s" : ""}...
-            </p>
+          {!error && (
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-6">
+              <p className="text-gray-300 text-sm text-center">
+                <strong>Não feche esta página.</strong> Ela será fechada automaticamente quando a autenticação for
+                concluída.
+              </p>
+            </div>
           )}
 
           {error && (
@@ -193,17 +162,6 @@ export default function AuthCallback() {
                 className="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded"
               >
                 Fechar esta janela
-              </button>
-            </div>
-          )}
-
-          {countdown !== null && (
-            <div className="flex justify-center">
-              <button
-                onClick={() => window.close()}
-                className="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded"
-              >
-                Fechar agora
               </button>
             </div>
           )}

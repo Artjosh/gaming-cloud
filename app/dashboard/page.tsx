@@ -10,6 +10,16 @@ export default function Dashboard() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false)
+  const [loadingTimeout, setLoadingTimeout] = useState(false)
+
+  // Adicionar um timeout para o loading para evitar loading infinito
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoadingTimeout(true)
+    }, 5000) // 5 segundos de timeout
+
+    return () => clearTimeout(timer)
+  }, [])
 
   useEffect(() => {
     // Redirecionar para a página inicial se o usuário não estiver logado
@@ -22,6 +32,19 @@ export default function Dashboard() {
       setShowEmailVerificationModal(true)
     }
   }, [user, loading, router])
+
+  // Se estiver carregando por muito tempo, mostrar uma mensagem e um botão para voltar
+  if (loading && loadingTimeout) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-black">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-white mb-4">Está demorando mais do que o esperado...</p>
+        <button onClick={() => router.push("/")} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Voltar para a página inicial
+        </button>
+      </div>
+    )
+  }
 
   // Não renderizar nada enquanto verifica a autenticação
   if (loading || !user) {
