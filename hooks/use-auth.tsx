@@ -41,71 +41,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Função unificada para obter o usuário atual
   const fetchUser = useCallback(async () => {
     try {
+      console.log("[fetchUser] Iniciando busca de usuário")
+
       // Primeiro, tentamos obter a sessão do cliente Supabase
       const supabase = createClientClient()
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
 
       if (sessionError) {
-        console.error("Erro ao obter sessão:", sessionError)
+        console.error("[fetchUser] Erro ao obter sessão:", sessionError)
         setUser(null)
         return false
       }
 
       if (sessionData.session) {
+        console.log("[fetchUser] Sessão encontrada no cliente, buscando usuário")
         const { data: userData, error: userError } = await supabase.auth.getUser()
 
         if (userError) {
-          console.error("Erro ao obter usuário:", userError)
+          console.error("[fetchUser] Erro ao obter usuário:", userError)
           setUser(null)
           return false
         }
 
         if (userData && userData.user) {
+          console.log("[fetchUser] Usuário encontrado no cliente:", userData.user.id)
           setUser(userData.user as User)
           return true
         }
+      } else {
+        console.log("[fetchUser] Nenhuma sessão encontrada no cliente, tentando API do servidor")
       }
 
       // Se não tivermos uma sessão válida no cliente, tentamos a API do servidor
       // Adicionamos um timestamp para evitar cache
       const timestamp = new Date().getTime()
-      const response = await fetch(`/api/auth/user?t=${timestamp}`, {
-        headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-      })
+      try {
+        const response = await fetch(`/api/auth/user?t=${timestamp}`, {
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+          // Adicionar um timeout para evitar que a requisição fique pendente indefinidamente
+          signal: AbortSignal.timeout(5000), // 5 segundos de timeout
+        })
 
-      const data = await response.json()
-
-      if (response.ok && data.user) {
-        setUser(data.user)
-
-        // Se temos uma sessão do servidor, mas não do cliente, tentar sincronizar
-        if (data.session && !sessionData.session) {
-          try {
-            // Tentar atualizar a sessão no cliente
-            await supabase.auth.setSession({
-              access_token: data.session.access_token,
-              refresh_token: data.session.refresh_token,
-            })
-            console.log("Sessão sincronizada do servidor para o cliente")
-          } catch (e) {
-            console.error("Erro ao sincronizar sessão:", e)
-          }
+        if (!response.ok) {
+          console.log("[fetchUser] Resposta da API não ok:", response.status)
+          setUser(null)
+          return false
         }
 
-        return true
-      } else {
+        const data = await response.json()
+
+        if (data.user) {
+          console.log("[fetchUser] Usuário encontrado na API:", data.user.id)
+          setUser(data.user)
+
+          // Se temos uma sessão do servidor, mas não do cliente, tentar sincronizar
+          if (data.session && !sessionData.session) {
+            try {
+              // Tentar atualizar a sessão no cliente
+              await supabase.auth.setSession({
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token,
+              })
+              console.log("[fetchUser] Sessão sincronizada do servidor para o cliente")
+            } catch (e) {
+              console.error("[fetchUser] Erro ao sincronizar sessão:", e)
+            }
+          }
+
+          return true
+        } else {
+          console.log("[fetchUser] Nenhum usuário encontrado na API")
+          setUser(null)
+          return false
+        }
+      } catch (fetchError) {
+        console.error("[fetchUser] Erro ao fazer fetch da API:", fetchError)
         setUser(null)
         return false
       }
     } catch (error) {
-      console.error("Erro ao verificar autenticação:", error)
+      console.error("[fetchUser] Erro geral ao verificar autenticação:", error)
       setUser(null)
       return false
     } finally {
+      console.log("[fetchUser] Finalizando busca de usuário, definindo loading como false")
       setLoading(false)
       setAuthInitialized(true)
     }
@@ -152,7 +175,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Verificar se o usuário está autenticado ao carregar a página
-    fetchUser()
+    const initAuth = async () => {
+      try {
+        console.log("[initAuth] Iniciando verificação de autenticação")
+        await fetchUser()
+        console.log("[initAuth] Verificação de autenticação concluída")
+      } catch (error) {
+        console.error("[initAuth] Erro ao inicializar autenticação:", error)
+        setLoading(false)
+        setAuthInitialized(true)
+      }
+    }
+
+    initAuth()
 
     // Configurar listener para mudanças de autenticação
     const supabase = createClientClient()
