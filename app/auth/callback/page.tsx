@@ -46,7 +46,16 @@ export default function AuthCallback() {
             return
           }
 
-          console.log("[callback] Sessão obtida com sucesso, notificando o dispositivo original...")
+          // Obter dados do usuário
+          const { data: userData, error: userError } = await supabase.auth.getUser()
+
+          if (userError || !userData.user) {
+            console.error("[callback] Erro ao obter usuário:", userError)
+            setError(`Erro ao obter usuário: ${userError?.message || "Usuário não encontrado"}`)
+            return
+          }
+
+          console.log("[callback] Sessão e usuário obtidos com sucesso, notificando o dispositivo original...")
 
           // Notificar o dispositivo original que o login foi bem-sucedido
           try {
@@ -57,6 +66,8 @@ export default function AuthCallback() {
               },
               body: JSON.stringify({
                 loginToken,
+                session: data.session,
+                user: userData.user,
               }),
             })
 
