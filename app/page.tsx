@@ -71,6 +71,22 @@ export default function Home() {
     }
   }, [user, loading, processingAuth, router])
 
+  // Função para limpar a sessão do localStorage
+  const clearSession = () => {
+    if (typeof window !== "undefined") {
+      console.log("Limpando sessão do localStorage")
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && (key.startsWith("supabase.") || key.includes("auth"))) {
+          console.log(`Removendo item do localStorage: ${key}`)
+          localStorage.removeItem(key)
+          i--
+        }
+      }
+      window.location.reload()
+    }
+  }
+
   // Mostrar indicador de carregamento durante a autenticação
   if (loading || processingAuth) {
     return (
@@ -82,7 +98,7 @@ export default function Home() {
         {loadingTimeout && (
           <>
             <p className="text-white mb-4 text-center max-w-md px-4">
-              Está demorando mais do que o esperado. Pode haver um problema com a autenticação.
+              Está demorando mais do que o esperado. Pode haver um problema com a sessão armazenada.
             </p>
             <div className="flex gap-4">
               <button
@@ -91,22 +107,7 @@ export default function Home() {
               >
                 Recarregar a página
               </button>
-              <button
-                onClick={() => {
-                  // Limpar localStorage e recarregar
-                  if (typeof window !== "undefined") {
-                    for (let i = 0; i < localStorage.length; i++) {
-                      const key = localStorage.key(i)
-                      if (key && (key.startsWith("supabase.") || key.includes("auth"))) {
-                        localStorage.removeItem(key)
-                        i--
-                      }
-                    }
-                  }
-                  window.location.reload()
-                }}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
+              <button onClick={clearSession} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
                 Limpar sessão e recarregar
               </button>
             </div>

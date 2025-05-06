@@ -38,10 +38,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return sessionStorage.getItem("is_auth_callback") === "true"
   }, [])
 
+  // Função para verificar se há uma sessão no localStorage
+  const hasLocalStorageSession = useCallback(() => {
+    if (typeof window === "undefined") return false
+    const key = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split("//")[1]?.split(".")[0]}-auth-token`
+    return !!localStorage.getItem(key)
+  }, [])
+
+  // Função para obter o usuário diretamente da API do servidor
+  const fetchUserFromServer = useCallback(async () => {
+    try {
+      console.log("[fetchUserFromServer] Obtendo usuário da API do servidor")
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/auth/user?t=${timestamp}`, {
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+        // Adicionar um timeout para evitar que a requisição fique pendente indefinidamente
+        signal: AbortSignal.timeout(5000), // 5 segundos de timeout
+      })
+
+      if (!response.ok) {
+        console.log("[fetchUserFromServer] Resposta da API não ok:", response.status)
+        return { success: false, user: null }
+      }
+
+      const data = await response.json()
+
+      if (data.user) {
+        console.log("[fetchUserFromServer] Usuário encontrado na API:", data.user.id)
+        setUser(data.user)
+        return { success: true, user: data.user, session: data.session }
+      } else {
+        console.log("[fetchUserFromServer] Nenhum usuário encontrado na API")
+        setUser(null)
+        return { success: false, user: null }
+      }
+    } catch (error) {
+      console.error("[fetchUserFromServer] Erro ao obter usuário da API:", error)
+      return { success: false, user: null, error }
+    }
+  }, [])
+
   // Função unificada para obter o usuário atual
   const fetchUser = useCallback(async () => {
     try {
       console.log("[fetchUser] Iniciando busca de usuário")
+
+      // Verificar se há uma sessão no localStorage
+      const hasSession = hasLocalStorageSession()
+      console.log("[fetchUser] Sessão no localStorage:", hasSession ? "Sim" : "Não")
+
+      // Se houver uma sessão no localStorage, tentar obter o usuário diretamente da API do servidor
+      if (hasSession) {
+        console.log("[fetchUser] Tentando obter usuário da API do servidor devido à sessão no localStorage")
+        const result = await fetchUserFromServer()
+        if (result.success && result.user) {
+          console.log("[fetchUser] Usuário obtido com sucesso da API do servidor")
+
+          // Tentar sincronizar a sessão com o cliente Supabase
+          if (result.session) {
+            try {
+              const supabase = createClientClient()
+              await supabase.auth.setSession({
+                access_token: result.session.access_token,
+                refresh_token: result.session.refresh_token,
+              })
+              console.log("[fetchUser] Sessão sincronizada com o cliente Supabase")
+            } catch (e) {
+              console.error("[fetchUser] Erro ao sincronizar sessão com o cliente Supabase:", e)
+            }
+          }
+
+          return true
+        }
+      }
 
       // Primeiro, tentamos obter a sessão do cliente Supabase
       const supabase = createClientClient()
@@ -73,56 +146,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Se não tivermos uma sessão válida no cliente, tentamos a API do servidor
-      // Adicionamos um timestamp para evitar cache
-      const timestamp = new Date().getTime()
-      try {
-        const response = await fetch(`/api/auth/user?t=${timestamp}`, {
-          headers: {
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            Pragma: "no-cache",
-            Expires: "0",
-          },
-          // Adicionar um timeout para evitar que a requisição fique pendente indefinidamente
-          signal: AbortSignal.timeout(5000), // 5 segundos de timeout
-        })
-
-        if (!response.ok) {
-          console.log("[fetchUser] Resposta da API não ok:", response.status)
-          setUser(null)
-          return false
-        }
-
-        const data = await response.json()
-
-        if (data.user) {
-          console.log("[fetchUser] Usuário encontrado na API:", data.user.id)
-          setUser(data.user)
-
-          // Se temos uma sessão do servidor, mas não do cliente, tentar sincronizar
-          if (data.session && !sessionData.session) {
-            try {
-              // Tentar atualizar a sessão no cliente
-              await supabase.auth.setSession({
-                access_token: data.session.access_token,
-                refresh_token: data.session.refresh_token,
-              })
-              console.log("[fetchUser] Sessão sincronizada do servidor para o cliente")
-            } catch (e) {
-              console.error("[fetchUser] Erro ao sincronizar sessão:", e)
-            }
-          }
-
-          return true
-        } else {
-          console.log("[fetchUser] Nenhum usuário encontrado na API")
-          setUser(null)
-          return false
-        }
-      } catch (fetchError) {
-        console.error("[fetchUser] Erro ao fazer fetch da API:", fetchError)
-        setUser(null)
-        return false
-      }
+      const result = await fetchUserFromServer()
+      return result.success
     } catch (error) {
       console.error("[fetchUser] Erro geral ao verificar autenticação:", error)
       setUser(null)
@@ -132,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
       setAuthInitialized(true)
     }
-  }, [])
+  }, [fetchUserFromServer, hasLocalStorageSession])
 
   // Função para processar o hash de autenticação (centralizada aqui)
   const processAuthHash = useCallback(async () => {
@@ -178,10 +203,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initAuth = async () => {
       try {
         console.log("[initAuth] Iniciando verificação de autenticação")
-        await fetchUser()
+
+        // Verificar se há uma sessão no localStorage
+        const hasSession = hasLocalStorageSession()
+        console.log("[initAuth] Sessão no localStorage:", hasSession ? "Sim" : "Não")
+
+        // Se houver uma sessão no localStorage, forçar uma verificação com a API do servidor
+        if (hasSession) {
+          console.log("[initAuth] Forçando verificação com a API do servidor devido à sessão no localStorage")
+          await fetchUserFromServer()
+        } else {
+          await fetchUser()
+        }
+
         console.log("[initAuth] Verificação de autenticação concluída")
       } catch (error) {
         console.error("[initAuth] Erro ao inicializar autenticação:", error)
+      } finally {
         setLoading(false)
         setAuthInitialized(true)
       }
@@ -213,7 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [fetchUser, router, isAuthCallbackPage])
+  }, [fetchUser, router, isAuthCallbackPage, hasLocalStorageSession, fetchUserFromServer])
 
   const refreshUser = useCallback(async () => {
     await fetchUser()
