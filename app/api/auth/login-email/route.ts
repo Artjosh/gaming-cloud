@@ -42,61 +42,22 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient()
 
-    // Verificar se o usuário já existe
-    const { data: existingUsers, error: searchError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("email", email)
-      .limit(1)
+    // Enviar email com OTP e Magic Link
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        // URL para onde o usuário será redirecionado após clicar no magic link
+        // Incluímos o token de login para identificar a sessão
+        emailRedirectTo: `${origin}/auth/callback?login_token=${loginToken}`,
+      },
+    })
 
-    if (searchError) {
-      console.error("Erro ao verificar usuário existente:", searchError)
-    }
-
-    // Se o usuário não existir, criá-lo automaticamente
-    if (!existingUsers || existingUsers.length === 0) {
-      try {
-        // Criar o usuário no auth
-        const { data: authData, error: authError } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            // URL para onde o usuário será redirecionado após clicar no magic link
-            // Incluímos o token de login para identificar a sessão
-            emailRedirectTo: `${origin}/auth/callback?login_token=${loginToken}`,
-          },
-        })
-
-        if (authError) {
-          return NextResponse.json({ error: authError.message }, { status: 400 })
-        }
-
-        // Criar o usuário na tabela users
-        await supabase.from("users").insert({
-          email: email,
-          created_at: new Date().toISOString(),
-          last_login: new Date().toISOString(),
-        })
-      } catch (error) {
-        console.error("Erro ao criar usuário:", error)
-        return NextResponse.json({ error: "Erro ao criar usuário" }, { status: 500 })
+    if (error) {
+      // Verificar se o erro é de email não confirmado
+      if (error.message.includes("Email not confirmed")) {
+        return NextResponse.json({ error: "Email not confirmed" }, { status: 401 })
       }
-    } else {
-      // Usuário já existe, apenas enviar o email de login
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          // URL para onde o usuário será redirecionado após clicar no magic link
-          // Incluímos o token de login para identificar a sessão
-          emailRedirectTo: `${origin}/auth/callback?login_token=${loginToken}`,
-        },
-      })
-
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-
-      // Atualizar o último login
-      await supabase.from("users").update({ last_login: new Date().toISOString() }).eq("email", email)
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
     return NextResponse.json({ success: true, token: loginToken })

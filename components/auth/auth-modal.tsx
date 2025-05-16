@@ -1,14 +1,24 @@
 "use client"
+import { useState, useEffect } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import LoginForm from "./login-form"
+import RegisterForm from "./register-form"
 
 interface AuthModalProps {
   isOpen: boolean
   onClose: () => void
+  initialView?: "login" | "register"
 }
 
-export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
-  // Não precisamos mais do estado view, pois só teremos login
+export default function AuthModal({ isOpen, onClose, initialView = "login" }: AuthModalProps) {
+  const [view, setView] = useState<"login" | "register">(initialView)
+
+  // Reset to login view whenever modal is closed
+  useEffect(() => {
+    if (!isOpen) {
+      setView("login")
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -31,7 +41,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className="min-w-[300px] w-full max-w-md"
           >
-            <LoginForm onClose={onClose} />
+            {view === "login" ? (
+              <LoginForm onClose={onClose} onSwitchToRegister={() => setView("register")} />
+            ) : (
+              <RegisterForm onClose={onClose} onSwitchToLogin={() => setView("login")} />
+            )}
           </motion.div>
         </motion.div>
       )}
