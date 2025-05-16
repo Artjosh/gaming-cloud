@@ -48,7 +48,7 @@ export default function Navbar() {
           onClick={() => setIsAuthModalOpen(true)}
         >
           <LogIn className="h-4 w-4 mr-2" />
-          Login / Criar Conta
+          Login
         </Button>
       )}
 
